@@ -35,6 +35,8 @@ struct WaveApp: App {
                 Label("Recording...", systemImage: "mic.fill")
             case .transcribing:
                 Label("Transcribing...", systemImage: "brain")
+            case .transforming:
+                Label("Transforming...", systemImage: "wand.and.stars")
             case .error(let msg):
                 Label(msg, systemImage: "exclamationmark.triangle")
             }
