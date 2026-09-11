@@ -107,7 +107,7 @@ private final class OverlayDrawView: NSView {
         switch status {
         case .idle, .error:
             drawPill(ctx: ctx, bounds: b)
-        case .recording, .transcribing:
+        case .recording, .transcribing, .transforming:
             drawWave(ctx: ctx, bounds: b)
         }
     }
@@ -193,7 +193,7 @@ private final class OverlayDrawView: NSView {
         CVDisplayLinkSetOutputHandler(dl) { _, _, _, _, _ in
             DispatchQueue.main.async {
                 switch view.status {
-                case .recording, .transcribing:
+                case .recording, .transcribing, .transforming:
                     view.phase += 0.04
                     view.needsDisplay = true
                 default: break
@@ -287,7 +287,7 @@ final class OverlayPanel: NSPanel {
 
         let isActive: Bool
         switch status {
-        case .recording, .transcribing: isActive = true
+        case .recording, .transcribing, .transforming: isActive = true
         default: isActive = false
         }
 

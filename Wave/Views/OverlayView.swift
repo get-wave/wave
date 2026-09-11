@@ -28,6 +28,8 @@ struct OverlayView: View {
                     WaveAnimationView(speed: 1.0)
                 case .transcribing:
                     WaveAnimationView(speed: 0.4)
+                case .transforming:
+                    WaveAnimationView(speed: 0.7)
                 case .error(let message):
                     Text(message)
                         .font(.system(size: 11, weight: .medium))
