@@ -49,6 +49,17 @@ struct PasteService {
         }
     }
 
+    /// Waits (up to 500 ms) until no modifier key is physically held, so a still-held
+    /// shortcut key can't combine with the synthetic Cmd+V. Returns at once in the usual case.
+    @MainActor
+    static func waitForModifierKeysReleased() async {
+        let modifiers: CGEventFlags = [.maskCommand, .maskAlternate, .maskControl, .maskShift, .maskSecondaryFn]
+        let deadline = Date().addingTimeInterval(0.5)
+        while !CGEventSource.flagsState(.hidSystemState).intersection(modifiers).isEmpty, Date() < deadline {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
     @MainActor
     static func getSelectedText() async -> String? {
         let pasteboard = NSPasteboard.general
