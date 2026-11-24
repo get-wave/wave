@@ -11,7 +11,7 @@ struct DictionaryEditorView: View {
             if state.customVocabulary.isEmpty {
                 Text("No terms yet. Add technical names,\nlibrary names, or jargon below.")
                     .foregroundStyle(.secondary)
-                    .font(.system(size: 13))
+                    .font(WaveFont.body)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -20,22 +20,19 @@ struct DictionaryEditorView: View {
                         ForEach(state.customVocabulary, id: \.self) { term in
                             HStack {
                                 Text(term)
-                                    .font(.system(size: 13))
+                                    .font(WaveFont.body)
                                 Spacer()
                                 Button {
                                     state.customVocabulary.removeAll { $0 == term }
                                 } label: {
                                     Image(systemName: "minus.circle.fill")
-                                        .foregroundStyle(.secondary)
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(.waveIcon)
                             }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+                            .waveCard()
                         }
                     }
-                    .padding(16)
+                    .padding(WaveSpacing.page)
                 }
             }
 
@@ -44,11 +41,7 @@ struct DictionaryEditorView: View {
                     .textFieldStyle(.roundedBorder)
                     .onSubmit { addTerm(to: &state.customVocabulary) }
                 Button("Add") { addTerm(to: &state.customVocabulary) }
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
-                    .buttonStyle(.plain)
+                    .buttonStyle(.wave)
                     .disabled(newTerm.trimmingCharacters(in: .whitespaces).isEmpty)
             }
             .padding(.horizontal, 16)

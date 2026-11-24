@@ -35,6 +35,11 @@ final class TranscriptionService: NSObject, AVAudioRecorderDelegate {
 
     func stopRecordingAndDiscard() async {
         await recorder.stopRecording()
+        deleteRecording()
+    }
+
+    private func deleteRecording() {
+        if let recordedFile { try? FileManager.default.removeItem(at: recordedFile) }
         recordedFile = nil
     }
 
@@ -45,6 +50,7 @@ final class TranscriptionService: NSObject, AVAudioRecorderDelegate {
 
     func stopRecordingAndTranscribe(includePunctuation: Bool, language: String? = nil, initialPrompt: String? = nil) async -> String? {
         await recorder.stopRecording()
+        defer { deleteRecording() }
 
         guard let recordedFile = recordedFile else { return nil }
         guard let whisperContext = whisperContext else { return nil }
@@ -55,9 +61,7 @@ final class TranscriptionService: NSObject, AVAudioRecorderDelegate {
             print("[wave] decoded \(samples.count) samples, peak amplitude: \(peak)")
             await whisperContext.fullTranscribe(samples: samples, language: language, initialPrompt: initialPrompt)
             let text = await whisperContext.getTranscription()
-            print("[wave] raw transcription: '\(text)'")
             let cleaned = Self.clean(text, includePunctuation: includePunctuation)
-            print("[wave] cleaned: '\(cleaned ?? "nil — nothing to paste")'")
             return cleaned
         } catch {
             print("[wave] transcription error: \(error)")
@@ -67,6 +71,7 @@ final class TranscriptionService: NSObject, AVAudioRecorderDelegate {
 
     func stopRecordingAndTranscribeWithGroq(apiKey: String, model: String, includePunctuation: Bool, language: String? = nil, initialPrompt: String? = nil) async -> String? {
         await recorder.stopRecording()
+        defer { deleteRecording() }
         guard let recordedFile = recordedFile else { return nil }
         guard let fileData = try? Data(contentsOf: recordedFile) else { return nil }
 
@@ -113,9 +118,7 @@ final class TranscriptionService: NSObject, AVAudioRecorderDelegate {
             let (data, _) = try await URLSession.shared.data(for: request)
             struct GroqResponse: Decodable { let text: String }
             let response = try JSONDecoder().decode(GroqResponse.self, from: data)
-            print("[wave] groq raw: '\(response.text)'")
             let cleaned = Self.clean(response.text, includePunctuation: includePunctuation)
-            print("[wave] groq cleaned: '\(cleaned ?? "nil — nothing to paste")'")
             return cleaned
         } catch {
             print("[wave] groq error: \(error)")
@@ -175,7 +178,7 @@ final class TranscriptionService: NSObject, AVAudioRecorderDelegate {
             let response = try JSONDecoder().decode(AIResponse.self, from: data)
             let result = response.choices.first?.message.content
             let usage = response.usage
-            print("[wave] AI response: '\(result ?? "nil")' tokens=\(usage?.totalTokens ?? 0)")
+            print("[wave] AI response tokens=\(usage?.totalTokens ?? 0)")
             return AIResult(
                 text: result,
                 promptTokens: usage?.promptTokens ?? 0,

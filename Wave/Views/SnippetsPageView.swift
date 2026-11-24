@@ -11,10 +11,10 @@ struct SnippetsPageView: View {
                 Spacer()
                 VStack(spacing: 6) {
                     Image(systemName: "text.quote")
-                        .font(.system(size: 24))
+                        .font(WaveFont.emptyStateIcon)
                         .foregroundStyle(.quaternary)
                     Text("No snippets yet")
-                        .font(.system(size: 12))
+                        .font(WaveFont.detail)
                         .foregroundStyle(.tertiary)
                 }
                 .frame(maxWidth: .infinity)
@@ -33,7 +33,7 @@ struct SnippetsPageView: View {
                 }
 
                 Text("Right-click a snippet for more options")
-                    .font(.system(size: 10))
+                    .font(WaveFont.micro)
                     .foregroundStyle(.quaternary)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, 6)
@@ -71,10 +71,10 @@ private struct SnippetRow: View {
         HStack(alignment: .top, spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(snippet.name)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(WaveFont.bodyEmphasis)
                     .lineLimit(1)
                 Text(snippet.value)
-                    .font(.system(size: 11))
+                    .font(WaveFont.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -107,54 +107,46 @@ private struct SnippetSheet: View {
     var isEditing: Bool { snippet != nil }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: WaveSpacing.section) {
             Text(isEditing ? "Edit Snippet" : "New Snippet")
-                .font(.system(size: 14, weight: .semibold))
+                .font(WaveFont.sheetTitle)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("Snippet")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(WaveFont.sectionHeader)
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
                 TextField("Github Profile", text: $name)
                     .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 13))
+                    .font(WaveFont.body)
             }
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("Value")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(WaveFont.sectionHeader)
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
                 TextEditor(text: $value)
-                    .font(.system(size: 13))
+                    .font(WaveFont.body)
                     .frame(minHeight: 80, maxHeight: 120)
                     .scrollContentBackground(.hidden)
-                    .padding(6)
-                    .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+                    .waveField()
             }
 
             HStack {
                 Spacer()
                 Button("Cancel") { dismiss() }
-                    .buttonStyle(.plain)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
+                    .buttonStyle(.waveSubtle)
 
                 Button(isEditing ? "Update" : "Save") {
                     onSave(name, value)
                     dismiss()
                 }
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 5)
-                .background(Color.brand.opacity(0.15), in: RoundedRectangle(cornerRadius: 7))
-                .foregroundStyle(Color.brand)
-                .buttonStyle(.plain)
+                .buttonStyle(.wavePrimary)
                 .disabled(name.isEmpty || value.isEmpty)
             }
         }
-        .padding(20)
+        .padding(WaveSpacing.sheet)
         .frame(width: 320)
         .onAppear {
             if let snippet {

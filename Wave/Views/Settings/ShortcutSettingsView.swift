@@ -6,8 +6,8 @@ struct ShortcutSettingsView: View {
     var body: some View {
         @Bindable var state = appState
 
-        VStack(alignment: .leading, spacing: 20) {
-                section("Mode") {
+        VStack(alignment: .leading, spacing: WaveSpacing.section) {
+                WaveSection("Mode") {
                     Picker("", selection: $state.dictationMode) {
                         ForEach(DictationMode.allCases, id: \.self) { mode in
                             Text(mode.rawValue).tag(mode)
@@ -20,11 +20,11 @@ struct ShortcutSettingsView: View {
                     Text(appState.dictationMode == .toggle
                          ? "Press the dictation shortcut once to start, again to stop."
                          : "Hold the dictation shortcut to record, release to transcribe.")
-                        .font(.system(size: 12))
+                        .font(WaveFont.detail)
                         .foregroundStyle(.secondary)
                 }
 
-                section("Shortcuts") {
+                WaveSection("Actions") {
                     shortcutRow("Dictation", keyCode: $state.hotkeyKeyCode, modifiers: $state.hotkeyModifiers) { isRecording in
                         if isRecording { appState.hotkeyService.stop() } else { appState.hotkeyService.start() }
                     } onChange: { appState.setupHotkey() }
@@ -42,7 +42,7 @@ struct ShortcutSettingsView: View {
                     } onChange: { appState.setupHotkey() }
                 }
             }
-            .padding(16)
+            .padding(WaveSpacing.page)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
@@ -56,7 +56,7 @@ struct ShortcutSettingsView: View {
     ) -> some View {
         HStack(spacing: 12) {
             Text(label)
-                .font(.system(size: 13))
+                .font(WaveFont.body)
                 .frame(width: 72, alignment: .leading)
             ShortcutRecorderView(
                 keyCode: keyCode,
@@ -69,14 +69,4 @@ struct ShortcutSettingsView: View {
         }
     }
 
-    @ViewBuilder
-    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-            content()
-        }
-    }
 }

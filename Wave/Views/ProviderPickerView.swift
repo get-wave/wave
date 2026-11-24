@@ -13,10 +13,9 @@ struct ProviderPickerView: View {
                 Spacer()
                 Button(action: { dismiss() }) {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                        .font(.system(size: 18))
+                        .font(WaveFont.dismissIcon)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.waveIcon)
             }
 
             Divider()
@@ -45,7 +44,7 @@ struct ProviderPickerView: View {
 
         HStack {
             Text("Or locate a model file:")
-                .font(.system(size: 13))
+                .font(WaveFont.body)
                 .foregroundStyle(.secondary)
             Spacer()
             Button("Choose File...") {
@@ -58,11 +57,7 @@ struct ProviderPickerView: View {
                     Task { await appState.loadSelectedModel() }
                 }
             }
-            .font(.system(size: 13, weight: .medium, design: .rounded))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
-            .buttonStyle(.plain)
+            .buttonStyle(.wave)
         }
     }
 
@@ -96,13 +91,13 @@ struct ProviderPickerView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(model.name)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(WaveFont.bodyEmphasis)
                     Text(model.size)
-                        .font(.system(size: 11))
+                        .font(WaveFont.caption)
                         .foregroundStyle(.secondary)
                 }
                 Text(model.type)
-                    .font(.system(size: 11))
+                    .font(WaveFont.caption)
                     .foregroundStyle(.secondary)
             }
 
@@ -111,18 +106,16 @@ struct ProviderPickerView: View {
             if isSelected {
                 HStack(spacing: 8) {
                     Label("Active", systemImage: "checkmark.circle.fill")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.green)
+                        .font(WaveFont.detail)
+                        .foregroundStyle(Color.waveSuccess)
                     Button(action: {
                         appState.modelManager.deleteModel(model)
                         appState.transcriptionService.unloadModel()
                         appState.isModelLoaded = false
                     }) {
                         Image(systemName: "trash")
-                            .foregroundStyle(.red.opacity(0.8))
-                            .font(.system(size: 12))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.waveIconDestructive)
                 }
             } else if isDownloaded {
                 HStack(spacing: 6) {
@@ -130,17 +123,11 @@ struct ProviderPickerView: View {
                         appState.modelManager.selectModel(model)
                         Task { await appState.loadSelectedModel() }
                     }
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
-                    .buttonStyle(.plain)
+                    .buttonStyle(.wave)
                     Button(action: { appState.modelManager.deleteModel(model) }) {
                         Image(systemName: "trash")
-                            .foregroundStyle(.red.opacity(0.8))
-                            .font(.system(size: 12))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.waveIconDestructive)
                 }
             } else if isDownloading {
                 let progress = appState.modelManager.downloadProgress[model.id.uuidString] ?? 0
@@ -148,26 +135,19 @@ struct ProviderPickerView: View {
                     ProgressView(value: progress)
                         .frame(width: 60)
                     Text("\(Int(progress * 100))%")
-                        .font(.system(size: 11).monospacedDigit())
+                        .font(WaveFont.caption.monospacedDigit())
                     Button(action: { appState.modelManager.cancelDownload() }) {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.waveIcon)
                 }
             } else {
                 Button("Download") {
                     appState.modelManager.download(model)
                 }
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
-                .buttonStyle(.plain)
+                .buttonStyle(.wave)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+        .waveCard()
     }
 }

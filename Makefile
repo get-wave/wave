@@ -12,9 +12,10 @@ DMG_NAME ?= Wave-Installer
 DMG_PATH := $(CURDIR)/$(DMG_NAME).dmg
 UPDATES_DIR := $(CURDIR)/updates/releases
 APP_ZIP := $(UPDATES_DIR)/$(APP_NAME).zip
+LOCAL_SIGN_IDENTITY ?= Wave Local Dev
 GENERATE_APPCAST := $(shell command -v generate_appcast 2>/dev/null || find "$(HOME)/Library/Developer/Xcode/DerivedData" -type f -name generate_appcast 2>/dev/null | head -n 1)
 
-.PHONY: all build build-debug run run-cli release dmg zip appcast clean clean-dmg
+.PHONY: all build build-debug run run-cli install-local release dmg zip appcast clean clean-dmg
 
 all: build
 
@@ -44,6 +45,27 @@ run: build-debug
 ## run-cli: build (Debug) and run the binary in the terminal (logs to stdout, Ctrl+C to quit)
 run-cli: build-debug
 	"$(DEBUG_APP_BUNDLE)/Contents/MacOS/$(APP_NAME)"
+
+## install-local: build Release, sign with the local certificate, install to /Applications and launch
+## Signing with a stable certificate keeps Accessibility and Microphone permissions across rebuilds.
+install-local:
+	@security find-identity -p codesigning | grep -q "$(LOCAL_SIGN_IDENTITY)" || { \
+		echo "error: signing identity '$(LOCAL_SIGN_IDENTITY)' not found. See CONTRIBUTING.md."; \
+		exit 1; \
+	}
+	xcodebuild \
+		-project "$(PROJECT)" \
+		-scheme "$(SCHEME)" \
+		-configuration Release \
+		-derivedDataPath "$(DERIVED_DATA)" \
+		CODE_SIGN_IDENTITY="-" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="" PROVISIONING_PROFILE_SPECIFIER="" \
+		build
+	-osascript -e 'tell application id "io.monawwar.wave" to quit'
+	@sleep 1
+	rm -rf "/Applications/$(APP_NAME).app"
+	ditto "$(APP_BUNDLE)" "/Applications/$(APP_NAME).app"
+	codesign --force --deep --sign "$(LOCAL_SIGN_IDENTITY)" --preserve-metadata=entitlements "/Applications/$(APP_NAME).app"
+	open "/Applications/$(APP_NAME).app"
 
 dmg: build
 	@command -v create-dmg >/dev/null 2>&1 || { \

@@ -17,8 +17,8 @@ struct AnswerCardView: View {
             if text.count > scrollThreshold {
                 ScrollView(.vertical, showsIndicators: true) {
                     Text(text)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.white.opacity(0.95))
+                        .font(WaveFont.body)
+                        .foregroundStyle(WaveHUD.text)
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.trailing, 4)
@@ -27,8 +27,8 @@ struct AnswerCardView: View {
                 .frame(height: textMaxHeight)
             } else {
                 Text(text)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.white.opacity(0.95))
+                    .font(WaveFont.body)
+                    .foregroundStyle(WaveHUD.text)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -44,16 +44,16 @@ struct AnswerCardView: View {
                 }) {
                     HStack(spacing: 4) {
                         Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(WaveFont.chartLabel)
                         Text(didCopy ? "Copied" : "Copy")
-                            .font(.system(size: 11, weight: .medium))
+                            .font(WaveFont.sectionHeader)
                     }
-                    .foregroundStyle(.white.opacity(0.9))
+                    .foregroundStyle(WaveHUD.text)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(.white.opacity(0.08))
+                        RoundedRectangle(cornerRadius: WaveRadius.button)
+                            .fill(WaveHUD.control)
                     )
                 }
                 .buttonStyle(.plain)
@@ -62,25 +62,25 @@ struct AnswerCardView: View {
 
                 Button(action: onClose) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.7))
+                        .font(WaveFont.chartLabel)
+                        .foregroundStyle(WaveHUD.secondaryText)
                         .frame(width: 22, height: 22)
                         .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(.white.opacity(0.08))
+                            RoundedRectangle(cornerRadius: WaveRadius.button)
+                                .fill(WaveHUD.control)
                         )
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(12)
+        .padding(WaveSpacing.card)
         .frame(width: cardWidth)
         .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Color(red: 0.13, green: 0.13, blue: 0.13).opacity(0.95))
+            RoundedRectangle(cornerRadius: WaveHUD.cardRadius)
+                .fill(WaveHUD.surface)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .stroke(.white.opacity(0.1), lineWidth: 0.5)
+                    RoundedRectangle(cornerRadius: WaveHUD.cardRadius)
+                        .stroke(WaveHUD.stroke, lineWidth: 0.5)
                 )
         )
     }

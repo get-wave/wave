@@ -37,9 +37,9 @@ private final class TooltipPanel: NSPanel {
 
         let container = NSView()
         container.wantsLayer = true
-        container.layer?.backgroundColor = CGColor(red: 0.13, green: 0.13, blue: 0.13, alpha: 0.9)
-        container.layer?.cornerRadius = 6
-        container.layer?.borderColor = CGColor(red: 1, green: 1, blue: 1, alpha: 0.1)
+        container.layer?.backgroundColor = WaveHUD.background
+        container.layer?.cornerRadius = WaveHUD.pillRadius
+        container.layer?.borderColor = WaveHUD.border
         container.layer?.borderWidth = 0.5
         container.addSubview(label)
         contentView = container
@@ -98,16 +98,16 @@ private final class OverlayDrawView: NSView {
         let r = b.height / 2
 
         let bg = CGPath(roundedRect: b, cornerWidth: r, cornerHeight: r, transform: nil)
-        ctx.setFillColor(CGColor(red: 0.13, green: 0.13, blue: 0.13, alpha: 0.9))
+        ctx.setFillColor(WaveHUD.background)
         ctx.addPath(bg); ctx.fillPath()
-        ctx.setStrokeColor(CGColor(red: 1, green: 1, blue: 1, alpha: 0.1))
+        ctx.setStrokeColor(WaveHUD.border)
         ctx.setLineWidth(0.5)
         ctx.addPath(bg); ctx.strokePath()
 
         switch status {
         case .idle, .error:
             drawPill(ctx: ctx, bounds: b)
-        case .recording, .transcribing:
+        case .recording, .transcribing, .transforming:
             drawWave(ctx: ctx, bounds: b)
         }
     }
@@ -193,7 +193,7 @@ private final class OverlayDrawView: NSView {
         CVDisplayLinkSetOutputHandler(dl) { _, _, _, _, _ in
             DispatchQueue.main.async {
                 switch view.status {
-                case .recording, .transcribing:
+                case .recording, .transcribing, .transforming:
                     view.phase += 0.04
                     view.needsDisplay = true
                 default: break
@@ -287,7 +287,7 @@ final class OverlayPanel: NSPanel {
 
         let isActive: Bool
         switch status {
-        case .recording, .transcribing: isActive = true
+        case .recording, .transcribing, .transforming: isActive = true
         default: isActive = false
         }
 
