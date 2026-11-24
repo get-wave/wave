@@ -8,7 +8,7 @@ Wave is a lightweight macOS dictation app. Press a shortcut, speak, and your wor
 
 - **Single source of truth.** All app state lives in one `@Observable @MainActor` class (`AppState`). Do not create additional observable singletons or pass state through multiple layers.
 - **Services are owned by `AppState`**, not created in views. Views call methods on the state object; they never instantiate services directly.
-- **All persistent settings** are stored in `UserDefaults` via `didSet` on the property. No other persistence mechanism.
+- **All persistent settings** are stored in `UserDefaults` via `didSet` on the property. No other persistence mechanism. The one exception is secrets (API keys), which go in the Keychain through `KeychainService`, still written from the property's `didSet`.
 - **Views are display-only.** Business logic belongs in `AppState` or a service. If a view is doing more than formatting and rendering, move the logic out.
 
 ---

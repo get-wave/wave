@@ -270,8 +270,8 @@ jobs:
 
           generate_appcast \
             --ed-key-file /tmp/sparkle.key \
-            --download-url-prefix "https://github.com/mxvsh/wave/releases/download/${TAG}/" \
-            --link "https://github.com/mxvsh/wave" \
+            --download-url-prefix "https://github.com/${{ github.repository }}/releases/download/${TAG}/" \
+            --link "https://github.com/${{ github.repository }}" \
             release-dir/
           rm /tmp/sparkle.key
 

@@ -30,7 +30,7 @@ Both shortcuts are fully customizable in Settings → Shortcut.
 
 ## Quick start
 
-Download the latest DMG from [Releases](https://github.com/mxvsh/wave/releases/latest).
+Download the latest DMG from [Releases](https://github.com/get-wave/wave/releases/latest).
 
 Releases are distributed as signed, notarized DMGs.
 

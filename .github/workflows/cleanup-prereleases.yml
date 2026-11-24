@@ -18,7 +18,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Keep the 3 most recent pre-releases, delete the rest
-          gh release list --repo mxvsh/wave --limit 100 --json tagName,isPrerelease \
+          gh release list --repo ${{ github.repository }} --limit 100 --json tagName,isPrerelease \
             | jq -r '.[] | select(.isPrerelease == true) | .tagName' \
             | tail -n +4 \
-            | xargs -I {} gh release delete {} --repo mxvsh/wave --yes --cleanup-tag
+            | xargs -I {} gh release delete {} --repo ${{ github.repository }} --yes --cleanup-tag

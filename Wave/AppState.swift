@@ -76,7 +76,7 @@ final class AppState {
         }
     }
     var groqAPIKey: String {
-        didSet { UserDefaults.standard.set(groqAPIKey, forKey: "groqAPIKey") }
+        didSet { KeychainService.set(groqAPIKey, for: "groqAPIKey") }
     }
     var groqModel: String {
         didSet { UserDefaults.standard.set(groqModel, forKey: "groqModel") }
@@ -216,7 +216,11 @@ final class AppState {
         showInDock = UserDefaults.standard.bool(forKey: "showInDock")
         customVocabulary = UserDefaults.standard.stringArray(forKey: "customVocabulary") ?? []
         transcriptionProvider = TranscriptionProvider(rawValue: UserDefaults.standard.string(forKey: "transcriptionProvider") ?? "") ?? .local
-        groqAPIKey = UserDefaults.standard.string(forKey: "groqAPIKey") ?? ""
+        if let legacyKey = UserDefaults.standard.string(forKey: "groqAPIKey") {
+            KeychainService.set(legacyKey, for: "groqAPIKey")
+            UserDefaults.standard.removeObject(forKey: "groqAPIKey")
+        }
+        groqAPIKey = KeychainService.string(for: "groqAPIKey") ?? ""
         groqModel = UserDefaults.standard.string(forKey: "groqModel") ?? "whisper-large-v3-turbo"
         transcriptionLanguage = UserDefaults.standard.string(forKey: "transcriptionLanguage") ?? "auto"
         selectedMicUID = UserDefaults.standard.string(forKey: "selectedMicUID") ?? ""
@@ -547,7 +551,6 @@ final class AppState {
 
         let text: String?
         if isAIMode, let query = transcribed, !query.isEmpty, !groqAPIKey.isEmpty {
-            print("[wave] sending to AI: '\(query)'")
             var fullPrompt = llmSystemPrompt
             if !snippetManager.snippets.isEmpty {
                 let snippetLines = snippetManager.snippets.map { "- \($0.name): \($0.value)" }.joined(separator: "\n")
@@ -571,7 +574,6 @@ final class AppState {
         status = .idle
         overlayPanel?.setAIMode(false)
         let wasAIMode = isAIMode
-        let hadSelection = selectedContext != nil
         isAIMode = false
         selectedContext = nil
         hideOverlayIfIdle()
@@ -587,7 +589,6 @@ final class AppState {
             let shouldShowCard = wasAIMode && !PasteService.hasEditableFocus()
 
             if shouldShowCard {
-                print("[wave] showing answer card: '\(text)'")
                 overlayPanel?.showAnswer(
                     text,
                     onCopy: { [weak self] in
@@ -598,7 +599,6 @@ final class AppState {
                     }
                 )
             } else {
-                print("[wave] pasting: '\(text)' (hadSelection=\(hadSelection))")
                 try? await Task.sleep(for: .milliseconds(100))
                 PasteService.paste(text: text)
             }

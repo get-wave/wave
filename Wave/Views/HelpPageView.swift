@@ -26,7 +26,7 @@ struct HelpPageView: View {
                         Text("Source")
                             .font(WaveFont.detail)
                         Spacer()
-                        Link("GitHub", destination: URL(string: "https://github.com/mxvsh/wave")!)
+                        Link("GitHub", destination: URL(string: "https://github.com/get-wave/wave")!)
                             .font(WaveFont.detail)
                     }
                     HStack {
