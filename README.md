@@ -88,3 +88,7 @@ For bug reports and feature requests, open a GitHub issue.
 ## Contributing
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup and expectations.
+
+## License
+
+Wave is released under the [MIT License](LICENSE).
