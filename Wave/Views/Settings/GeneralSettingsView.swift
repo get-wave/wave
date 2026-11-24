@@ -9,27 +9,27 @@ struct GeneralSettingsView: View {
     var body: some View {
         @Bindable var state = appState
 
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: WaveSpacing.section) {
                 // Transcription
-                section("Transcription") {
+                WaveSection("Transcription") {
                     Toggle("Include punctuation", isOn: $state.includePunctuation)
-                        .font(.system(size: 13))
+                        .font(WaveFont.body)
                     Toggle("Mute system audio while dictating", isOn: $state.muteSystemAudio)
-                        .font(.system(size: 13))
+                        .font(WaveFont.body)
                     Toggle("Hide pill when idle", isOn: $state.hideIdlePill)
-                        .font(.system(size: 13))
+                        .font(WaveFont.body)
                     Toggle("Show in Dock", isOn: $state.showInDock)
-                        .font(.system(size: 13))
+                        .font(WaveFont.body)
                     Picker("Language", selection: $state.transcriptionLanguage) {
                         ForEach(Self.languages, id: \.code) { lang in
                             Text(lang.label).tag(lang.code)
                         }
                     }
-                    .font(.system(size: 13))
+                    .font(WaveFont.body)
                 }
 
                 // Microphone
-                section("Microphone") {
+                WaveSection("Microphone") {
                     Picker("Input", selection: Binding(
                         get: { appState.selectedMicUID },
                         set: { appState.selectedMicUID = $0 }
@@ -45,7 +45,7 @@ struct GeneralSettingsView: View {
 
                 // Permissions
                 if !micGranted || !accessibilityGranted {
-                    section("Permissions") {
+                    WaveSection("Permissions") {
                         if !micGranted {
                             permissionRow(
                                 icon: "mic.fill",
@@ -71,7 +71,7 @@ struct GeneralSettingsView: View {
                     }
                 }
             }
-            .padding(16)
+            .padding(WaveSpacing.page)
         .onReceive(Timer.publish(every: 1.5, on: .main, in: .common).autoconnect()) { _ in
             micGranted = PermissionService.isMicrophoneAuthorized()
             accessibilityGranted = PermissionService.isAccessibilityGranted()
@@ -104,42 +104,24 @@ struct GeneralSettingsView: View {
         ("no", "Norwegian"),
     ]
 
-    // MARK: - Helpers
-
-    @ViewBuilder
-    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-            content()
-        }
-    }
 
     @ViewBuilder
     private func permissionRow(icon: String, label: String, detail: String, action: @escaping () -> Void) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
-                .foregroundStyle(.orange)
+                .foregroundStyle(Color.waveWarning)
                 .frame(width: 16)
             VStack(alignment: .leading, spacing: 1) {
                 Text(label)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(WaveFont.bodyEmphasis)
                 Text(detail)
-                    .font(.system(size: 11))
+                    .font(WaveFont.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer()
             Button("Allow") { action() }
-                .font(.system(size: 12, weight: .medium, design: .rounded))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
-                .buttonStyle(.plain)
+                .buttonStyle(.wave)
         }
-        .padding(10)
-        .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.orange.opacity(0.2), lineWidth: 1))
+        .waveCard(tint: .waveWarning)
     }
 }

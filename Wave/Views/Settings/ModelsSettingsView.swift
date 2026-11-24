@@ -9,8 +9,8 @@ struct ModelsSettingsView: View {
     var body: some View {
         @Bindable var state = appState
 
-        VStack(alignment: .leading, spacing: 20) {
-                section("Models") {
+        VStack(alignment: .leading, spacing: WaveSpacing.section) {
+                WaveSection("Models") {
                     modelRow(
                         icon: "waveform",
                         label: "Audio",
@@ -25,26 +25,22 @@ struct ModelsSettingsView: View {
                     )
                 }
 
-                section("Groq") {
+                WaveSection("Groq") {
                     Toggle("Use Groq API", isOn: Binding(
                         get: { appState.transcriptionProvider == .groq },
                         set: { appState.transcriptionProvider = $0 ? .groq : .local }
                     ))
-                    .font(.system(size: 13))
+                    .font(WaveFont.body)
 
                     if appState.transcriptionProvider == .groq {
                         if !appState.groqAPIKey.isEmpty && !isEditingKey {
                             HStack(spacing: 6) {
                                 Text(maskedAPIKey)
-                                    .font(.system(size: 12, design: .monospaced))
+                                    .font(WaveFont.mono)
                                     .foregroundStyle(.secondary)
                                 Spacer()
                                 Button("Edit") { isEditingKey = true }
-                                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 4)
-                                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(.wave)
                             }
                         } else {
                             HStack(spacing: 6) {
@@ -53,7 +49,7 @@ struct ModelsSettingsView: View {
                                     set: { appState.groqAPIKey = $0 }
                                 ))
                                 .textFieldStyle(.roundedBorder)
-                                .font(.system(size: 12, design: .monospaced))
+                                .font(WaveFont.mono)
                                 Button("Save") {
                                     Task {
                                         await appState.verifyAndFetchGroqModels()
@@ -62,12 +58,7 @@ struct ModelsSettingsView: View {
                                         }
                                     }
                                 }
-                                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(Color.brand.opacity(0.15), in: RoundedRectangle(cornerRadius: 7))
-                                .foregroundStyle(Color.brand)
-                                .buttonStyle(.plain)
+                                .buttonStyle(.wavePrimary)
                                 .disabled(appState.groqAPIKey.isEmpty || appState.groqAPIStatus == .checking)
                             }
                         }
@@ -76,19 +67,18 @@ struct ModelsSettingsView: View {
                     }
                 }
 
-                section("LLM System Prompt") {
+                WaveSection("LLM System Prompt") {
                     TextEditor(text: $state.llmSystemPrompt)
-                        .font(.system(size: 12))
+                        .font(WaveFont.detail)
                         .frame(minHeight: 80, maxHeight: 120)
                         .scrollContentBackground(.hidden)
-                        .padding(8)
-                        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+                        .waveField()
                     Text("Instructions for the AI when using AI Mode shortcut.")
-                        .font(.system(size: 11))
+                        .font(WaveFont.caption)
                         .foregroundStyle(.secondary)
                 }
             }
-            .padding(16)
+            .padding(WaveSpacing.page)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .sheet(isPresented: $showProviderPicker) {
             ProviderPickerView()
@@ -111,22 +101,22 @@ struct ModelsSettingsView: View {
             HStack(spacing: 5) {
                 ProgressView().scaleEffect(0.6).frame(width: 8, height: 8)
                 Text("Verifying...")
-                    .font(.system(size: 11))
+                    .font(WaveFont.caption)
                     .foregroundStyle(.secondary)
             }
         case .operational:
             HStack(spacing: 5) {
-                Circle().fill(.green).frame(width: 6, height: 6)
+                Circle().fill(Color.waveSuccess).frame(width: 6, height: 6)
                 Text("Operational")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.green)
+                    .font(WaveFont.caption)
+                    .foregroundStyle(Color.waveSuccess)
             }
         case .error(let msg):
             HStack(spacing: 5) {
-                Circle().fill(.red).frame(width: 6, height: 6)
+                Circle().fill(Color.waveDanger).frame(width: 6, height: 6)
                 Text(msg)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.red)
+                    .font(WaveFont.caption)
+                    .foregroundStyle(Color.waveDanger)
             }
         }
     }
@@ -155,42 +145,27 @@ struct ModelsSettingsView: View {
         llmModels.first(where: { $0.id == appState.aiModel })?.name ?? appState.aiModel
     }
 
-    @ViewBuilder
-    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-            content()
-        }
-    }
 
     @ViewBuilder
     private func modelRow(icon: String, label: String, value: String, action: (() -> Void)?) -> some View {
         HStack {
             Image(systemName: icon)
-                .font(.system(size: 12))
+                .font(WaveFont.detail)
                 .foregroundStyle(.secondary)
                 .frame(width: 16)
             Text(label)
-                .font(.system(size: 13, weight: .medium))
+                .font(WaveFont.bodyEmphasis)
             Spacer()
             Text(value)
-                .font(.system(size: 12))
+                .font(WaveFont.detail)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             if let action {
                 Button("Change\u{2026}") { action() }
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
-                    .buttonStyle(.plain)
+                    .buttonStyle(.wave)
             }
         }
-        .padding(10)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+        .waveCard()
         .opacity(action == nil ? 0.5 : 1)
     }
 }

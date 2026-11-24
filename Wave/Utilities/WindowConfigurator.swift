@@ -1,10 +1,6 @@
 import AppKit
 import SwiftUI
 
-extension Color {
-    static let brand = Color(red: 0x7B / 255, green: 0x6E / 255, blue: 0xF6 / 255)
-}
-
 final class WaveWindowDelegate: NSObject, NSWindowDelegate {
     var onWindowClosed: (() -> Void)?
 

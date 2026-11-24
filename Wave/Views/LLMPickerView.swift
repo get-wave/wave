@@ -47,28 +47,27 @@ struct LLMPickerView: View {
                 Spacer()
                 Button(action: { dismiss() }) {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                        .font(.system(size: 18))
+                        .font(WaveFont.dismissIcon)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.waveIcon)
             }
 
             // Header row
             HStack(spacing: 0) {
                 Text("Model")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(WaveFont.sectionHeader)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Text("Input/1M")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(WaveFont.sectionHeader)
                     .foregroundStyle(.secondary)
                     .frame(width: 70, alignment: .trailing)
                 Text("Output/1M")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(WaveFont.sectionHeader)
                     .foregroundStyle(.secondary)
                     .frame(width: 75, alignment: .trailing)
                 Text("Context")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(WaveFont.sectionHeader)
                     .foregroundStyle(.secondary)
                     .frame(width: 60, alignment: .trailing)
                 Spacer().frame(width: 60)
@@ -95,43 +94,35 @@ struct LLMPickerView: View {
 
         HStack(spacing: 0) {
             Text(model.name)
-                .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                .font(isSelected ? WaveFont.bodyEmphasis : WaveFont.body)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text(model.inputPer1M)
-                .font(.system(size: 12).monospacedDigit())
+                .font(WaveFont.detail.monospacedDigit())
                 .foregroundStyle(.secondary)
                 .frame(width: 70, alignment: .trailing)
             Text(model.outputPer1M)
-                .font(.system(size: 12).monospacedDigit())
+                .font(WaveFont.detail.monospacedDigit())
                 .foregroundStyle(.secondary)
                 .frame(width: 75, alignment: .trailing)
             Text(model.context)
-                .font(.system(size: 12))
+                .font(WaveFont.detail)
                 .foregroundStyle(.secondary)
                 .frame(width: 60, alignment: .trailing)
             HStack {
                 Spacer()
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.green)
+                        .font(WaveFont.body)
+                        .foregroundStyle(Color.waveSuccess)
                 } else {
                     Button("Use") {
                         appState.aiModel = model.id
                     }
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 7))
-                    .buttonStyle(.plain)
+                    .buttonStyle(.wave)
                 }
             }
             .frame(width: 60)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(in: RoundedRectangle(cornerRadius: 8))
-        .backgroundStyle(isSelected ? AnyShapeStyle(Color.brand.opacity(0.08)) : AnyShapeStyle(.quaternary.opacity(0.5)))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(isSelected ? Color.brand.opacity(0.2) : Color.clear, lineWidth: 1))
+        .waveCard(tint: isSelected ? .brand : nil)
     }
 }

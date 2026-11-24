@@ -43,7 +43,7 @@ struct OnboardingView: View {
     private var welcomeStep: some View {
         VStack(spacing: 16) {
             Image(systemName: "waveform")
-                .font(.system(size: 48))
+                .font(WaveFont.heroIcon)
                 .foregroundStyle(.tint)
             Text("Welcome to wave")
                 .font(.title2.bold())
@@ -59,7 +59,7 @@ struct OnboardingView: View {
     private var microphoneStep: some View {
         VStack(spacing: 16) {
             Image(systemName: "mic.fill")
-                .font(.system(size: 48))
+                .font(WaveFont.heroIcon)
                 .foregroundStyle(.tint)
             Text("Microphone Access")
                 .font(.title2.bold())
@@ -69,7 +69,7 @@ struct OnboardingView: View {
             HStack(spacing: 12) {
                 if micGranted {
                     Label("Granted", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
+                        .foregroundStyle(Color.waveSuccess)
                     Button("Next") { step = 2 }
                         .buttonStyle(.borderedProminent)
                 } else {
@@ -90,7 +90,7 @@ struct OnboardingView: View {
     private var accessibilityStep: some View {
         VStack(spacing: 16) {
             Image(systemName: "hand.raised.fill")
-                .font(.system(size: 48))
+                .font(WaveFont.heroIcon)
                 .foregroundStyle(.tint)
             Text("Accessibility Access")
                 .font(.title2.bold())
@@ -100,7 +100,7 @@ struct OnboardingView: View {
             HStack(spacing: 12) {
                 if accessibilityGranted {
                     Label("Granted", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
+                        .foregroundStyle(Color.waveSuccess)
                     Button("Next") { step = 3 }
                         .buttonStyle(.borderedProminent)
                 } else {
@@ -122,7 +122,7 @@ struct OnboardingView: View {
     private var modelStep: some View {
         VStack(spacing: 16) {
             Image(systemName: "brain")
-                .font(.system(size: 48))
+                .font(WaveFont.heroIcon)
                 .foregroundStyle(.tint)
             Text("Choose a Model")
                 .font(.title2.bold())

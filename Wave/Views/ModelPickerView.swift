@@ -36,11 +36,7 @@ struct ModelPickerView: View {
                         Task { await appState.loadSelectedModel() }
                     }
                 }
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
-                .buttonStyle(.plain)
+                .buttonStyle(.wave)
             }
         }
         .padding()
@@ -56,13 +52,13 @@ struct ModelPickerView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(model.name)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(WaveFont.bodyEmphasis)
                     Text(model.size)
-                        .font(.system(size: 11))
+                        .font(WaveFont.caption)
                         .foregroundStyle(.secondary)
                 }
                 Text(model.type)
-                    .font(.system(size: 11))
+                    .font(WaveFont.caption)
                     .foregroundStyle(.secondary)
             }
 
@@ -70,44 +66,33 @@ struct ModelPickerView: View {
 
             if isSelected {
                 Label("Active", systemImage: "checkmark.circle.fill")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.green)
+                    .font(WaveFont.detail)
+                    .foregroundStyle(Color.waveSuccess)
             } else if isDownloaded {
                 Button("Use") {
                     appState.modelManager.selectModel(model)
                     Task { await appState.loadSelectedModel() }
                 }
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
-                .buttonStyle(.plain)
+                .buttonStyle(.wave)
             } else if isDownloading {
                 let progress = appState.modelManager.downloadProgress[model.id.uuidString] ?? 0
                 HStack(spacing: 8) {
                     ProgressView(value: progress)
                         .frame(width: 60)
                     Text("\(Int(progress * 100))%")
-                        .font(.system(size: 11).monospacedDigit())
+                        .font(WaveFont.caption.monospacedDigit())
                     Button(action: { appState.modelManager.cancelDownload() }) {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.waveIcon)
                 }
             } else {
                 Button("Download") {
                     appState.modelManager.download(model)
                 }
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
-                .buttonStyle(.plain)
+                .buttonStyle(.wave)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+        .waveCard()
     }
 }

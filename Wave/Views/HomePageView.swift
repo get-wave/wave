@@ -7,7 +7,7 @@ struct HomePageView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: WaveSpacing.section) {
                 HStack(spacing: 10) {
                     StatCard(
                         value: formatWordCount(appState.historyManager.wordsToday),
@@ -24,17 +24,17 @@ struct HomePageView: View {
                 }
 
                 if appState.historyManager.totalWords > 0 {
-                    section("Activity") {
+                    WaveSection("Activity") {
                         ActivityHeatmapView(
                             grid: appState.historyManager.activityHeatmap,
                             maxValue: appState.historyManager.activityHeatmapMax
                         )
                         Text("Darker cells mean more words dictated at that day and hour.")
-                            .font(.system(size: 11))
+                            .font(WaveFont.caption)
                             .foregroundStyle(.tertiary)
                     }
 
-                    section("This Week") {
+                    WaveSection("This Week") {
                         WeekBarChartView(
                             counts: appState.historyManager.wordsLast7Days,
                             labels: appState.historyManager.wordsLast7DayLabels,
@@ -46,7 +46,7 @@ struct HomePageView: View {
                 if appState.historyManager.records.isEmpty {
                     emptyState
                 } else {
-                    section("Recent") {
+                    WaveSection("Recent") {
                         LazyVStack(spacing: 0) {
                             ForEach(appState.historyManager.records.prefix(5)) { record in
                                 TranscriptionRow(record: record) {
@@ -55,14 +55,14 @@ struct HomePageView: View {
                             }
                         }
                         Text("Right-click for more options")
-                            .font(.system(size: 10))
+                            .font(WaveFont.micro)
                             .foregroundStyle(.quaternary)
                             .frame(maxWidth: .infinity, alignment: .center)
                             .padding(.top, 4)
                     }
                 }
             }
-            .padding(16)
+            .padding(WaveSpacing.page)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -70,13 +70,13 @@ struct HomePageView: View {
     private var emptyState: some View {
         VStack(spacing: 6) {
             Image(systemName: "waveform")
-                .font(.system(size: 24))
+                .font(WaveFont.emptyStateIcon)
                 .foregroundStyle(.quaternary)
             Text("No transcriptions yet")
-                .font(.system(size: 12))
+                .font(WaveFont.detail)
                 .foregroundStyle(.tertiary)
             Text("Your activity chart and time-saved estimate will appear here.")
-                .font(.system(size: 11))
+                .font(WaveFont.caption)
                 .foregroundStyle(.quaternary)
                 .multilineTextAlignment(.center)
         }
@@ -84,16 +84,6 @@ struct HomePageView: View {
         .padding(.vertical, 24)
     }
 
-    @ViewBuilder
-    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-            content()
-        }
-    }
 }
 
 // MARK: - Stat Card
@@ -105,18 +95,18 @@ private struct StatCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(value)
-                .font(.system(size: 20, weight: .semibold, design: .rounded))
+                .font(WaveFont.pageTitle)
                 .minimumScaleFactor(0.7)
                 .lineLimit(1)
             Text(label)
-                .font(.system(size: 10))
+                .font(WaveFont.micro)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+        .waveSurface()
     }
 }
 
@@ -133,11 +123,11 @@ private struct ActivityHeatmapView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 2) {
                 Text(" ")
-                    .font(.system(size: 9, design: .monospaced))
+                    .font(WaveFont.heatmapLabel)
                     .frame(width: 12)
                 ForEach(hourMarkers, id: \.self) { hour in
                     Text(hourLabel(hour))
-                        .font(.system(size: 9, design: .monospaced))
+                        .font(WaveFont.heatmapLabel)
                         .foregroundStyle(.tertiary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -146,7 +136,7 @@ private struct ActivityHeatmapView: View {
             ForEach(0..<7, id: \.self) { day in
                 HStack(spacing: 2) {
                     Text(weekdays[day])
-                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .font(WaveFont.heatmapLabel)
                         .foregroundStyle(.secondary)
                         .frame(width: 12, alignment: .leading)
 
@@ -162,8 +152,8 @@ private struct ActivityHeatmapView: View {
                 }
             }
         }
-        .padding(12)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+        .padding(WaveSpacing.card)
+        .waveSurface()
     }
 
     private func cellColor(_ value: Int) -> Color {
@@ -205,14 +195,14 @@ private struct WeekBarChartView: View {
                             .frame(height: barHeight(counts[index]))
                     }
                     Text(labels[index])
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .font(WaveFont.chartLabel)
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity)
             }
         }
-        .padding(12)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+        .padding(WaveSpacing.card)
+        .waveSurface()
     }
 
     private func barHeight(_ count: Int) -> CGFloat {
@@ -234,19 +224,17 @@ private struct TranscriptionRow: View {
         HStack(alignment: .top, spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(record.text)
-                    .font(.system(size: 12))
+                    .font(WaveFont.detail)
                     .lineLimit(2)
                 Text(timeLabel)
-                    .font(.system(size: 10))
+                    .font(WaveFont.micro)
                     .foregroundStyle(.tertiary)
                     .onAppear { timeLabel = relativeTime(record.date) }
                     .onReceive(timer) { _ in timeLabel = relativeTime(record.date) }
             }
             Spacer(minLength: 4)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 6))
+        .waveCard()
         .contentShape(Rectangle())
         .contextMenu {
             Button("Copy") {

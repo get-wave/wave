@@ -15,33 +15,15 @@ Wave is a lightweight macOS dictation app. Press a shortcut, speak, and your wor
 
 ## Design system
 
-Follow these rules consistently. Do not invent new patterns when an existing one covers the case.
+All UI uses the design system in `Wave/DesignSystem.swift`, documented in `DESIGN.md`. Read `DESIGN.md` before any UI change and run its checklist after.
 
-**Typography**
-- Section headers: size 11, medium weight, secondary color, uppercase
-- Row labels / body: size 13
-- Secondary detail: size 12, secondary color
-- Monospaced inputs (API keys, code): size 12, monospaced design
-- Captions / metadata: size 11
-
-**Spacing**
-- Page padding: 16pt on all sides
-- Between sections: 20pt
-- Within a section: 8pt
-
-**Backgrounds**
-- Card / row: `.quaternary.opacity(0.5)` with `RoundedRectangle(cornerRadius: 8)`
-- Standard button: `.quaternary` with `RoundedRectangle(cornerRadius: 6)`
-- Primary action button: `Color.brand.opacity(0.15)` background, `Color.brand` foreground, `RoundedRectangle(cornerRadius: 7)`. Brand color is `#958BF9`, defined as `Color.brand` in `Color+Brand.swift` — always use `Color.brand`, never `.blue`.
-
-**Buttons**
-- Always `.buttonStyle(.plain)`
-- Font: size 12, medium weight, rounded design
-- Standard padding: 10pt horizontal, 4pt vertical
-- Primary padding: 10pt horizontal, 5pt vertical
-
-**Sections**
-Every settings section follows this exact structure: uppercase label at size 11 in secondary color, followed by the content at 8pt spacing. Reuse the existing `section(_:content:)` helper found in each settings view — do not create a new one.
+- Use `WaveFont`, `WaveSpacing`, `WaveRadius`, `Color.brand` and the `Color.wave…` status colours. Never write a raw font size, padding number, corner radius or `Color(red:…)` in a view.
+- Buttons always use a `.wave…` button style (`.wave`, `.wavePrimary`, `.waveSubtle`, `.waveIcon`, `.waveIconDestructive`).
+- Section titles use `WaveSection("Title") { … }`. Do not write a private `section(_:)` helper.
+- Rows and cards use `.waveCard()` (or `.waveCard(tint:)` for selected or warning rows); tiles and charts use `.waveSurface()`; text editors use `.waveField()`.
+- Brand colour is `#7B6EF6`, defined as `Color.brand` in `DesignSystem.swift`. Never use `.blue` or `.accentColor`.
+- Floating overlays (pill, answer card) use `WaveHUD` tokens and are always dark.
+- If something is missing, add a token or component to `DesignSystem.swift` and `DESIGN.md` first, then use it.
 
 ---
 

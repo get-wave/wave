@@ -3,63 +3,53 @@ import SwiftUI
 struct AboutView: View {
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                section("Wave") {
+            VStack(alignment: .leading, spacing: WaveSpacing.section) {
+                WaveSection("Wave") {
                     Text("Wave is a macOS app that turns your voice into text, anywhere you type. Press a shortcut, speak, and your words appear at the cursor — no setup, no interruptions.")
-                        .font(.system(size: 12))
+                        .font(WaveFont.detail)
                         .foregroundStyle(.secondary)
                 }
 
-                section("About") {
+                WaveSection("About") {
                     if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
                         helpRow("Version", value: version)
                     }
                     HStack {
                         Text("Source")
-                            .font(.system(size: 12))
+                            .font(WaveFont.detail)
                         Spacer()
                         Link("GitHub", destination: URL(string: "https://github.com/mxvsh/wave")!)
-                            .font(.system(size: 12))
+                            .font(WaveFont.detail)
                     }
                     HStack {
                         Text("Community")
-                            .font(.system(size: 12))
+                            .font(WaveFont.detail)
                         Spacer()
                         Link("Discord", destination: URL(string: "https://discord.com/invite/3kUSy2d")!)
-                            .font(.system(size: 12))
+                            .font(WaveFont.detail)
                     }
                     HStack {
                         Text("Feedback")
-                            .font(.system(size: 12))
+                            .font(WaveFont.detail)
                         Spacer()
                         Link("@monawwarx", destination: URL(string: "https://x.com/monawwarx")!)
-                            .font(.system(size: 12))
+                            .font(WaveFont.detail)
                     }
                 }
             }
-            .padding(16)
+            .padding(WaveSpacing.page)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    @ViewBuilder
-    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-            content()
-        }
-    }
 
     private func helpRow(_ label: String, value: String) -> some View {
         HStack(alignment: .top) {
             Text(label)
-                .font(.system(size: 12))
+                .font(WaveFont.detail)
             Spacer()
             Text(value)
-                .font(.system(size: 12))
+                .font(WaveFont.detail)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.trailing)
         }
