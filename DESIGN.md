@@ -82,6 +82,9 @@ All button styles dim to 40% when disabled and to 70% while pressed. Don't add `
 ## Layout rules
 
 - Sidebar pages: a `VStack(alignment: .leading, spacing: WaveSpacing.section)` of `WaveSection`s, padded with `WaveSpacing.page`. Settings pages (General, Shortcuts, Models) never scroll.
+- The page title lives in the window toolbar. Never repeat it as the first section header; open with a one-line `detail` description or a differently named section instead.
+- The toolbar keeps its automatic background, so content that scrolls under the title is covered by the system material. Never hide the toolbar background.
+- The sidebar is a fixed 160 pt column, so the detail pane is always 360 pt wide. Lay pages out for that width.
 - Sheets: `sheetTitle` heading, `WaveSpacing.sheet` padding, actions at the bottom right with `waveSubtle` Cancel before the `wavePrimary` action.
 - Rows: a leading label (`bodyEmphasis` with an optional `caption` beneath), `Spacer()`, trailing controls in an `HStack(spacing: 6)`.
 - Empty states: centred `emptyStateIcon` in `.quaternary`, a `detail` line in `.tertiary`, an optional `caption` hint.
@@ -102,3 +105,5 @@ These keep raw values because they draw graphics, not UI chrome:
 - [ ] Rows and cards use `.waveCard` or `.waveSurface`
 - [ ] Brand colour appears at most once per row or sheet, for the main action or the selected state
 - [ ] Works in light and dark appearance
+- [ ] First section header doesn't repeat the page title
+- [ ] Fits a 360 pt wide detail pane; scrolled content stays below the title

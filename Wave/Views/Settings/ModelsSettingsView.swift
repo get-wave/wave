@@ -10,7 +10,7 @@ struct ModelsSettingsView: View {
         @Bindable var state = appState
 
         VStack(alignment: .leading, spacing: WaveSpacing.section) {
-                WaveSection("Models") {
+                WaveSection("Active Models") {
                     modelRow(
                         icon: "waveform",
                         label: "Audio",

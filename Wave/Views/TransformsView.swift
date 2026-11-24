@@ -8,11 +8,12 @@ struct TransformsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: WaveSpacing.section) {
-                WaveSection("Transforms") {
-                    Text("Select text in any app, then use a shortcut to rewrite it in place. Polish is the base action; you can configure up to 9 shortcut slots.")
-                        .font(WaveFont.detail)
-                        .foregroundStyle(.secondary)
+                Text("Select text in any app, then press a shortcut to rewrite it in place. Polish is always available; add up to 9 of your own.")
+                    .font(WaveFont.detail)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
+                WaveSection("Your Transforms") {
                     ForEach(appState.transformManager.allTransforms) { transform in
                         transformRow(transform)
                     }

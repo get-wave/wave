@@ -24,7 +24,7 @@ struct ShortcutSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                WaveSection("Shortcuts") {
+                WaveSection("Actions") {
                     shortcutRow("Dictation", keyCode: $state.hotkeyKeyCode, modifiers: $state.hotkeyModifiers) { isRecording in
                         if isRecording { appState.hotkeyService.stop() } else { appState.hotkeyService.start() }
                     } onChange: { appState.setupHotkey() }

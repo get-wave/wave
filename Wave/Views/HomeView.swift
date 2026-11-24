@@ -51,7 +51,7 @@ struct HomeView: View {
                     Label("About", systemImage: NavItem.about.icon).tag(NavItem.about)
                 }
             }
-            .navigationSplitViewColumnWidth(min: 140, ideal: 160, max: 200)
+            .navigationSplitViewColumnWidth(160)
             .safeAreaInset(edge: .bottom) {
                 Text("Wave v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
                     .font(WaveFont.caption)
@@ -77,7 +77,6 @@ struct HomeView: View {
             .frame(minWidth: 340)
         }
         .navigationTitle(selection?.rawValue ?? "Home")
-        .toolbarBackground(.hidden, for: .windowToolbar)
         .accentColor(.brand)
         .frame(minWidth: 520, maxWidth: 520, minHeight: 500, maxHeight: 500)
         .background(WindowConfigurator(onWindowClosed: { appState.updateDockVisibility() }).frame(width: 0, height: 0))

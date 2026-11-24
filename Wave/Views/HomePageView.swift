@@ -8,18 +8,18 @@ struct HomePageView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: WaveSpacing.section) {
-                HStack(spacing: 10) {
+                HStack(spacing: WaveSpacing.item) {
                     StatCard(
                         value: formatWordCount(appState.historyManager.wordsToday),
-                        label: "Today · words"
+                        label: "Words today"
                     )
                     StatCard(
                         value: formatWordCount(appState.historyManager.wordsThisWeek),
-                        label: "This week · words"
+                        label: "Words this week"
                     )
                     StatCard(
                         value: formatDuration(appState.historyManager.estimatedTimeSavedSeconds),
-                        label: "Time saved · est."
+                        label: "Time saved"
                     )
                 }
 
