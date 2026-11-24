@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import SwiftUI
+import OSLog
 
 enum DictationMode: String, CaseIterable {
     case pushToTalk = "Push to Talk"
@@ -28,6 +29,9 @@ enum ProviderStatus: Equatable {
     case operational
     case error(String)
 }
+
+/// Timings only, never transcript text. View with: log stream --predicate 'subsystem == "io.monawwar.wave"'
+private let latencyLog = Logger(subsystem: "io.monawwar.wave", category: "latency")
 
 @Observable
 @MainActor
@@ -615,6 +619,7 @@ final class AppState {
             if !selectedMicUID.isEmpty { microphoneManager.applySelection(uid: selectedMicUID) }
             if muteSystemAudio { SystemAudioDucker.duck() }
             try await transcriptionService.startRecording()
+            warmConnections()
             // Poll mic level and drive overlay visualization
             Task { [weak self] in
                 while let self, self.status == .recording {
@@ -632,6 +637,22 @@ final class AppState {
             hideOverlayIfIdle()
             overlayPanel?.setAIMode(false)
             isAIMode = false
+        }
+    }
+
+    /// Opens the HTTPS connection to each cloud provider this dictation will use while
+    /// the user is still speaking, so the request after release skips DNS, TCP and TLS.
+    private func warmConnections() {
+        var providers: [AIProvider] = []
+        if let cloud = transcriptionProvider.cloudProvider { providers.append(cloud) }
+        if (isAIMode || autoPolishDictations) && isLLMReady && !providers.contains(llmProvider) { providers.append(llmProvider) }
+        for provider in providers where !provider.runsOnThisMac && hasCredentials(provider) {
+            guard let url = URL(string: "\(baseURL(for: provider))/models") else { continue }
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 5
+            let key = apiKey(for: provider)
+            if !key.isEmpty { request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization") }
+            URLSession.shared.dataTask(with: request).resume()
         }
     }
 
@@ -659,6 +680,8 @@ final class AppState {
     }
 
     func stopDictationAndPaste() async {
+        let clock = ContinuousClock()
+        let releasedAt = clock.now
         status = .transcribing
         updateOverlay()
 
@@ -682,6 +705,7 @@ final class AppState {
             )
         }
         if muteSystemAudio { SystemAudioDucker.restore() }
+        let transcribedAt = clock.now
 
         var text: String?
         if isAIMode, let query = transcribed, !query.isEmpty, isLLMReady {
@@ -742,12 +766,18 @@ final class AppState {
                     }
                 )
             } else {
-                try? await Task.sleep(for: .milliseconds(100))
+                await PasteService.waitForModifierKeysReleased()
                 PasteService.paste(text: text)
             }
         } else {
             print("[wave] nothing to paste")
         }
+        let milliseconds = { (duration: Duration) in Int(duration.components.seconds * 1000 + duration.components.attoseconds / 1_000_000_000_000_000) }
+        let total = milliseconds(releasedAt.duration(to: clock.now))
+        let transcribe = milliseconds(releasedAt.duration(to: transcribedAt))
+        let after = milliseconds(transcribedAt.duration(to: clock.now))
+        let engine = transcriptionProvider.rawValue
+        latencyLog.notice("latency total \(total, privacy: .public) ms, transcribe \(transcribe, privacy: .public) ms, after \(after, privacy: .public) ms, \(engine, privacy: .public)")
 
         status = .idle
     }

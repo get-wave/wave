@@ -87,7 +87,11 @@ final class TranscriptionService: NSObject, AVAudioRecorderDelegate {
         await recorder.stopRecording()
         defer { deleteRecording() }
         guard let recordedFile = recordedFile else { return nil }
-        guard let fileData = try? Data(contentsOf: recordedFile) else { return nil }
+        // FLAC is lossless and about half the size of WAV, which roughly halves upload time.
+        let flac = Self.flacCopy(of: recordedFile)
+        defer { if let flac { try? FileManager.default.removeItem(at: flac) } }
+        let upload = flac ?? recordedFile
+        guard let fileData = try? Data(contentsOf: upload) else { return nil }
 
         guard let url = URL(string: "\(baseURL)/audio/transcriptions") else { return nil }
         var request = URLRequest(url: url)
@@ -101,8 +105,8 @@ final class TranscriptionService: NSObject, AVAudioRecorderDelegate {
         func append(_ string: String) { body.append(string.data(using: .utf8)!) }
 
         append("--\(boundary)\r\n")
-        append("Content-Disposition: form-data; name=\"file\"; filename=\"audio.wav\"\r\n")
-        append("Content-Type: audio/wav\r\n\r\n")
+        append("Content-Disposition: form-data; name=\"file\"; filename=\"audio.\(upload.pathExtension)\"\r\n")
+        append("Content-Type: audio/\(upload.pathExtension)\r\n\r\n")
         body.append(fileData)
         append("\r\n")
 
@@ -209,6 +213,34 @@ final class TranscriptionService: NSObject, AVAudioRecorderDelegate {
     }
 
     // MARK: - Helpers
+
+    private static func flacCopy(of wav: URL) -> URL? {
+        let destination = wav.deletingPathExtension().appendingPathExtension("flac")
+        try? FileManager.default.removeItem(at: destination)
+        do {
+            let input = try AVAudioFile(forReading: wav)
+            let format = input.processingFormat
+            guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(input.length)) else { return nil }
+            try input.read(into: buffer)
+            try writeFLAC(buffer, to: destination)
+            return destination
+        } catch {
+            print("[wave] FLAC encoding failed, uploading WAV: \(error)")
+            return nil
+        }
+    }
+
+    /// Kept separate so the output file is closed (and fully written) when this returns.
+    private static func writeFLAC(_ buffer: AVAudioPCMBuffer, to url: URL) throws {
+        let settings: [String: Any] = [
+            AVFormatIDKey: kAudioFormatFLAC,
+            AVSampleRateKey: buffer.format.sampleRate,
+            AVNumberOfChannelsKey: buffer.format.channelCount,
+            AVEncoderBitDepthHintKey: 16,
+        ]
+        let output = try AVAudioFile(forWriting: url, settings: settings, commonFormat: buffer.format.commonFormat, interleaved: buffer.format.isInterleaved)
+        try output.write(from: buffer)
+    }
 
     private static let noiseTokens: Set<String> = [
         "[BLANK_AUDIO]", "[SILENCE]", "(silence)", "[Music]", "[MUSIC]",
