@@ -375,6 +375,7 @@ final class AppState {
             DispatchQueue.main.async {
                 guard let self = self else { return }
                 self.isAIMode = true
+                PasteService.enableAccessibilityInFrontmostApp()
                 Task { @MainActor [weak self] in
                     guard let self = self else { return }
                     self.selectedContext = await PasteService.getSelectedText()

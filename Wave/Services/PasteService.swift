@@ -107,9 +107,18 @@ struct PasteService {
         return text?.isEmpty == false ? text : nil
     }
 
+    /// Chrome and Electron apps only expose their accessibility tree (and so
+    /// their focused text field) once an assistive app asks for it.
+    static func enableAccessibilityInFrontmostApp() {
+        guard let app = NSWorkspace.shared.frontmostApplication else { return }
+        let element = AXUIElementCreateApplication(app.processIdentifier)
+        AXUIElementSetAttributeValue(element, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+    }
+
     /// Returns true if the focused UI element accepts text input
     /// (e.g. user has cursor in a text field, text area, search bar).
     static func hasEditableFocus() -> Bool {
+        enableAccessibilityInFrontmostApp()
         let systemWide = AXUIElementCreateSystemWide()
         var focusedElement: CFTypeRef?
         guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focusedElement) == .success,
