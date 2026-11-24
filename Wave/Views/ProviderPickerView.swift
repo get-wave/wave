@@ -6,10 +6,12 @@ struct ProviderPickerView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        @Bindable var state = appState
+
+        VStack(alignment: .leading, spacing: WaveSpacing.section) {
             HStack {
-                Text("Audio Model")
-                    .font(.title3.bold())
+                Text("Speech Model")
+                    .font(WaveFont.sheetTitle)
                 Spacer()
                 Button(action: { dismiss() }) {
                     Image(systemName: "xmark.circle.fill")
@@ -18,15 +20,22 @@ struct ProviderPickerView: View {
                 .buttonStyle(.waveIcon)
             }
 
-            Divider()
+            Picker("", selection: $state.transcriptionProvider) {
+                Text("On this Mac").tag(TranscriptionProvider.local)
+                Text("Groq").tag(TranscriptionProvider.groq)
+                Text("OpenAI").tag(TranscriptionProvider.openai)
+                Text("Custom").tag(TranscriptionProvider.custom)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
 
-            if appState.transcriptionProvider == .local {
-                localContent
+            if let cloud = appState.transcriptionProvider.cloudProvider {
+                cloudContent(cloud)
             } else {
-                groqContent
+                localContent
             }
         }
-        .padding()
+        .padding(WaveSpacing.sheet)
     }
 
     // MARK: - Local
@@ -61,22 +70,34 @@ struct ProviderPickerView: View {
         }
     }
 
-    // MARK: - Groq
+    // MARK: - Cloud
 
     @ViewBuilder
-    private var groqContent: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Picker("", selection: Binding(
-                get: { appState.groqModel },
-                set: { appState.groqModel = $0 }
-            )) {
-                Text("whisper-large-v3-turbo  ·  faster  ·  $0.04/hr").tag("whisper-large-v3-turbo")
-                Text("whisper-large-v3  ·  most accurate  ·  $0.111/hr").tag("whisper-large-v3")
+    private func cloudContent(_ provider: AIProvider) -> some View {
+        @Bindable var state = appState
+
+        WaveSection("Model") {
+            if provider == .custom {
+                TextField("Model name", text: $state.cloudTranscriptionModel)
+                    .textFieldStyle(.roundedBorder)
+                    .font(WaveFont.mono)
+            } else {
+                Picker("", selection: $state.cloudTranscriptionModel) {
+                    ForEach(provider.transcriptionModels, id: \.self) { model in
+                        Text(model).tag(model)
+                    }
+                }
+                .pickerStyle(.radioGroup)
+                .labelsHidden()
+                .font(WaveFont.body)
             }
-            .pickerStyle(.radioGroup)
-            .labelsHidden()
+
+            Text(appState.hasCredentials(provider)
+                 ? "Audio is sent to \(provider.displayName) for transcription."
+                 : "Set up \(provider.displayName) under Models \u{2192} Connections to use it.")
+                .font(WaveFont.caption)
+                .foregroundStyle(appState.hasCredentials(provider) ? .secondary : Color.waveWarning)
         }
-        .padding(.bottom, 8)
     }
 
     // MARK: - Local model row

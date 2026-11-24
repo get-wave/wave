@@ -4,81 +4,38 @@ struct ModelsSettingsView: View {
     @Environment(AppState.self) private var appState
     @State private var showProviderPicker = false
     @State private var showLLMPicker = false
-    @State private var isEditingKey = false
+    @State private var editingProvider: AIProvider?
+    @State private var draftKey = ""
+    @State private var draftBaseURL = ""
 
     var body: some View {
-        @Bindable var state = appState
-
         VStack(alignment: .leading, spacing: WaveSpacing.section) {
-                WaveSection("Active Models") {
-                    modelRow(
-                        icon: "waveform",
-                        label: "Audio",
-                        value: audioModelLabel,
-                        action: { showProviderPicker = true }
-                    )
-                    modelRow(
-                        icon: "brain",
-                        label: "LLM",
-                        value: aiModelLabel,
-                        action: (appState.transcriptionProvider == .groq && !appState.groqAPIKey.isEmpty) ? { showLLMPicker = true } : nil
-                    )
-                }
+            WaveSection("Active Models") {
+                modelRow(
+                    icon: "waveform",
+                    label: "Speech",
+                    value: speechModelLabel,
+                    action: { showProviderPicker = true }
+                )
+                modelRow(
+                    icon: "brain",
+                    label: "AI",
+                    value: aiModelLabel,
+                    action: { showLLMPicker = true }
+                )
+            }
 
-                WaveSection("Groq") {
-                    Toggle("Use Groq API", isOn: Binding(
-                        get: { appState.transcriptionProvider == .groq },
-                        set: { appState.transcriptionProvider = $0 ? .groq : .local }
-                    ))
-                    .font(WaveFont.body)
-
-                    if appState.transcriptionProvider == .groq {
-                        if !appState.groqAPIKey.isEmpty && !isEditingKey {
-                            HStack(spacing: 6) {
-                                Text(maskedAPIKey)
-                                    .font(WaveFont.mono)
-                                    .foregroundStyle(.secondary)
-                                Spacer()
-                                Button("Edit") { isEditingKey = true }
-                                    .buttonStyle(.wave)
-                            }
-                        } else {
-                            HStack(spacing: 6) {
-                                TextField("API Key (gsk_...)", text: Binding(
-                                    get: { appState.groqAPIKey },
-                                    set: { appState.groqAPIKey = $0 }
-                                ))
-                                .textFieldStyle(.roundedBorder)
-                                .font(WaveFont.mono)
-                                Button("Save") {
-                                    Task {
-                                        await appState.verifyAndFetchGroqModels()
-                                        if appState.groqAPIStatus == .operational {
-                                            isEditingKey = false
-                                        }
-                                    }
-                                }
-                                .buttonStyle(.wavePrimary)
-                                .disabled(appState.groqAPIKey.isEmpty || appState.groqAPIStatus == .checking)
-                            }
-                        }
-
-                        groqStatusView
+            WaveSection("Connections") {
+                ForEach(appState.providersInUse) { provider in
+                    if editingProvider == provider {
+                        connectionEditor(provider)
+                    } else {
+                        connectionRow(provider)
                     }
                 }
-
-                WaveSection("LLM System Prompt") {
-                    TextEditor(text: $state.llmSystemPrompt)
-                        .font(WaveFont.detail)
-                        .frame(minHeight: 80, maxHeight: 120)
-                        .scrollContentBackground(.hidden)
-                        .waveField()
-                    Text("Instructions for the AI when using AI Mode shortcut.")
-                        .font(WaveFont.caption)
-                        .foregroundStyle(.secondary)
-                }
             }
-            .padding(WaveSpacing.page)
+        }
+        .padding(WaveSpacing.page)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .sheet(isPresented: $showProviderPicker) {
             ProviderPickerView()
@@ -92,62 +49,121 @@ struct ModelsSettingsView: View {
         }
     }
 
+    // MARK: - Connections
+
     @ViewBuilder
-    private var groqStatusView: some View {
-        switch appState.groqAPIStatus {
-        case .unknown:
-            EmptyView()
-        case .checking:
-            HStack(spacing: 5) {
-                ProgressView().scaleEffect(0.6).frame(width: 8, height: 8)
-                Text("Verifying...")
+    private func connectionRow(_ provider: AIProvider) -> some View {
+        HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(provider.displayName)
+                        .font(WaveFont.bodyEmphasis)
+                    statusBadge(provider)
+                }
+                Text(connectionDetail(provider))
                     .font(WaveFont.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
+            Spacer()
+            if provider.runsOnThisMac {
+                Button("Check") { Task { await appState.verifyProvider(provider) } }
+                    .buttonStyle(.wave)
+            } else {
+                Button(appState.hasCredentials(provider) ? "Edit" : "Set Up") { startEditing(provider) }
+                    .buttonStyle(appState.hasCredentials(provider) ? .wave : .wavePrimary)
+            }
+        }
+        .waveCard()
+    }
+
+    @ViewBuilder
+    private func connectionEditor(_ provider: AIProvider) -> some View {
+        VStack(alignment: .leading, spacing: WaveSpacing.item) {
+            Text(provider.displayName)
+                .font(WaveFont.bodyEmphasis)
+            if provider == .custom {
+                TextField("Base URL (https://host/v1)", text: $draftBaseURL)
+                    .textFieldStyle(.roundedBorder)
+                    .font(WaveFont.mono)
+            }
+            if provider.acceptsAPIKey {
+                SecureField(provider.keyPlaceholder, text: $draftKey)
+                    .textFieldStyle(.roundedBorder)
+                    .font(WaveFont.mono)
+            }
+            HStack(spacing: 6) {
+                Spacer()
+                Button("Cancel") { editingProvider = nil }
+                    .buttonStyle(.waveSubtle)
+                Button("Save") { save(provider) }
+                    .buttonStyle(.wavePrimary)
+                    .disabled(provider.requiresAPIKey && draftKey.trimmingCharacters(in: .whitespaces).isEmpty
+                              || provider == .custom && draftBaseURL.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .waveCard()
+    }
+
+    @ViewBuilder
+    private func statusBadge(_ provider: AIProvider) -> some View {
+        switch appState.providerStatus[provider] {
+        case .checking:
+            ProgressView().controlSize(.mini)
         case .operational:
-            HStack(spacing: 5) {
-                Circle().fill(Color.waveSuccess).frame(width: 6, height: 6)
-                Text("Operational")
-                    .font(WaveFont.caption)
-                    .foregroundStyle(Color.waveSuccess)
-            }
-        case .error(let msg):
-            HStack(spacing: 5) {
-                Circle().fill(Color.waveDanger).frame(width: 6, height: 6)
-                Text(msg)
-                    .font(WaveFont.caption)
-                    .foregroundStyle(Color.waveDanger)
-            }
+            Circle().fill(Color.waveSuccess).frame(width: 6, height: 6)
+        case .error:
+            Circle().fill(Color.waveDanger).frame(width: 6, height: 6)
+        case .unknown, nil:
+            EmptyView()
         }
     }
 
-    private var maskedAPIKey: String {
-        let key = appState.groqAPIKey
-        guard key.count > 10 else { return key }
-        let prefix = String(key.prefix(6))
-        let suffix = String(key.suffix(4))
-        return "\(prefix)...\(suffix)"
+    private func connectionDetail(_ provider: AIProvider) -> String {
+        if case .error(let message) = appState.providerStatus[provider] { return message }
+        let use = [
+            appState.transcriptionProvider.cloudProvider == provider ? "Speech" : nil,
+            appState.llmProvider == provider ? "AI" : nil,
+        ].compactMap { $0 }.joined(separator: " and ")
+        if provider.runsOnThisMac { return "\(use) · on this Mac · no key needed" }
+        if !appState.hasCredentials(provider) { return "\(use) · not set up" }
+        let key = appState.apiKey(for: provider)
+        guard !key.isEmpty else { return "\(use) · \(appState.baseURL(for: provider))" }
+        return "\(use) · \(key.count > 10 ? "\(key.prefix(6))…\(key.suffix(4))" : "key set")"
     }
 
-    private var audioModelLabel: String {
-        switch appState.transcriptionProvider {
-        case .local:
-            if let path = appState.modelManager.selectedModelPath {
-                return "Local \u{00B7} \(URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent)"
-            }
-            return "No model selected"
-        case .groq:
-            return "Groq \u{00B7} \(appState.groqModel)"
+    private func startEditing(_ provider: AIProvider) {
+        draftKey = appState.apiKey(for: provider)
+        draftBaseURL = appState.customBaseURL
+        editingProvider = provider
+    }
+
+    private func save(_ provider: AIProvider) {
+        appState.apiKeys[provider] = draftKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if provider == .custom { appState.customBaseURL = draftBaseURL.trimmingCharacters(in: .whitespacesAndNewlines) }
+        editingProvider = nil
+        Task { await appState.verifyProvider(provider) }
+    }
+
+    // MARK: - Active models
+
+    private var speechModelLabel: String {
+        if let cloud = appState.transcriptionProvider.cloudProvider {
+            return "\(cloud.displayName) \u{00B7} \(appState.cloudTranscriptionModel)"
         }
+        if let path = appState.modelManager.selectedModelPath {
+            return "Local \u{00B7} \(URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent)"
+        }
+        return "No model selected"
     }
 
     private var aiModelLabel: String {
-        llmModels.first(where: { $0.id == appState.aiModel })?.name ?? appState.aiModel
+        let model = llmModels.first(where: { $0.id == appState.aiModel })?.name ?? appState.aiModel
+        return "\(appState.llmProvider.displayName) \u{00B7} \(model.isEmpty ? "choose a model" : model)"
     }
 
-
     @ViewBuilder
-    private func modelRow(icon: String, label: String, value: String, action: (() -> Void)?) -> some View {
+    private func modelRow(icon: String, label: String, value: String, action: @escaping () -> Void) -> some View {
         HStack {
             Image(systemName: icon)
                 .font(WaveFont.detail)
@@ -160,12 +176,10 @@ struct ModelsSettingsView: View {
                 .font(WaveFont.detail)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-            if let action {
-                Button("Change\u{2026}") { action() }
-                    .buttonStyle(.wave)
-            }
+                .truncationMode(.middle)
+            Button("Change\u{2026}") { action() }
+                .buttonStyle(.wave)
         }
         .waveCard()
-        .opacity(action == nil ? 0.5 : 1)
     }
 }
