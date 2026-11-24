@@ -30,7 +30,15 @@ Both shortcuts are fully customizable in Settings → Shortcut.
 
 ## Quick start
 
-Download the latest DMG from [Releases](https://github.com/get-wave/wave/releases/latest).
+Install with [Homebrew](https://brew.sh):
+
+```bash
+brew install get-wave/tap/wave-dictation
+```
+
+The cask is `wave-dictation` because `wave` in Homebrew is Wave Terminal, an unrelated app. If Homebrew refuses to load it from an untrusted tap, run `brew trust get-wave/tap` once.
+
+Or download the latest DMG from [Releases](https://github.com/get-wave/wave/releases/latest).
 
 Releases are distributed as signed, notarized DMGs.
 

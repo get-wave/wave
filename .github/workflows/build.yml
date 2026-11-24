@@ -238,6 +238,8 @@ jobs:
   release:
     runs-on: macos-26
     needs: [build, package]
+    env:
+      HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
 
     steps:
       - name: Checkout
@@ -309,3 +311,17 @@ jobs:
           git add appcast.xml
           git commit -m "Update appcast for ${{ needs.build.outputs.tag }}"
           git push origin gh-pages
+
+      # Needs a HOMEBREW_TAP_TOKEN secret with write access to <owner>/homebrew-tap; skipped without it.
+      - name: Update Homebrew cask
+        if: needs.build.outputs.is_release == 'true' && env.HOMEBREW_TAP_TOKEN != ''
+        run: |
+          VERSION="${{ needs.build.outputs.marketing_version }}"
+          SHA=$(shasum -a 256 "release-dir/${{ needs.package.outputs.dmg_name }}" | cut -d' ' -f1)
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/${{ github.repository_owner }}/homebrew-tap.git" tap
+          cd tap
+          sed -i '' -E "s/^  version \".*\"/  version \"${VERSION}\"/; s/^  sha256 \".*\"/  sha256 \"${SHA}\"/" Casks/wave-dictation.rb
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -am "wave-dictation ${VERSION}"
+          git push
