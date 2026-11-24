@@ -148,6 +148,9 @@ struct ModelsSettingsView: View {
     // MARK: - Active models
 
     private var speechModelLabel: String {
+        if appState.transcriptionProvider == .parakeet {
+            return appState.parakeetDownloadProgress != nil ? "\(appState.parakeetModel.name) \u{00B7} downloading" : appState.parakeetModel.name
+        }
         if let cloud = appState.transcriptionProvider.cloudProvider {
             return "\(cloud.displayName) \u{00B7} \(appState.cloudTranscriptionModel)"
         }

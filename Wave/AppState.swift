@@ -8,9 +8,10 @@ enum DictationMode: String, CaseIterable {
 }
 
 enum TranscriptionProvider: String {
-    case local, groq, openai, custom
+    case local, parakeet, groq, openai, custom
 
     var cloudProvider: AIProvider? { AIProvider(rawValue: rawValue) }
+    var isOnDevice: Bool { cloudProvider == nil }
 }
 
 enum AppStatus: Equatable {
@@ -73,15 +74,27 @@ final class AppState {
         didSet {
             UserDefaults.standard.set(transcriptionProvider.rawValue, forKey: "transcriptionProvider")
             guard transcriptionProvider != oldValue else { return }
-            if let cloud = transcriptionProvider.cloudProvider {
+            if transcriptionProvider != .local {
                 transcriptionService.unloadModel()
                 isModelLoaded = false
-                cloudTranscriptionModel = cloud.transcriptionModels.first ?? ""
-            } else {
-                Task { await loadSelectedModel() }
+            }
+            if transcriptionProvider != .parakeet {
+                parakeetService.unload()
+                isParakeetLoaded = false
+            }
+            switch transcriptionProvider {
+            case .local: Task { await loadSelectedModel() }
+            case .parakeet: Task { await loadParakeet() }
+            case .groq, .openai, .custom:
+                cloudTranscriptionModel = transcriptionProvider.cloudProvider?.transcriptionModels.first ?? ""
             }
         }
     }
+    var parakeetModel: ParakeetModel {
+        didSet { UserDefaults.standard.set(parakeetModel.rawValue, forKey: "parakeetModel") }
+    }
+    var parakeetDownloadProgress: Double?
+    var isParakeetLoaded = false
     /// Speech-to-text model for the cloud transcription provider (persisted under its original Groq key).
     var cloudTranscriptionModel: String {
         didSet { UserDefaults.standard.set(cloudTranscriptionModel, forKey: "groqModel") }
@@ -182,13 +195,17 @@ final class AppState {
     let snippetManager = SnippetManager()
     let microphoneManager = MicrophoneManager()
     let transformManager = TransformManager()
+    let parakeetService = ParakeetService()
     var isModelLoaded = false   // tracked by @Observable — TranscriptionService is not
     var isAIMode = false
     var selectedContext: String? = nil
 
     var isReady: Bool {
-        guard let cloud = transcriptionProvider.cloudProvider else { return isModelLoaded }
-        return hasCredentials(cloud)
+        switch transcriptionProvider {
+        case .local: return isModelLoaded
+        case .parakeet: return isParakeetLoaded
+        case .groq, .openai, .custom: return transcriptionProvider.cloudProvider.map(hasCredentials) ?? false
+        }
     }
 
     var isLLMReady: Bool { hasCredentials(llmProvider) && !aiModel.isEmpty }
@@ -273,6 +290,7 @@ final class AppState {
             KeychainService.string(for: provider.keychainAccount).map { (provider, $0) }
         })
         cloudTranscriptionModel = UserDefaults.standard.string(forKey: "groqModel") ?? "whisper-large-v3-turbo"
+        parakeetModel = ParakeetModel(rawValue: UserDefaults.standard.string(forKey: "parakeetModel") ?? "") ?? .ultra
         let savedLLMProvider = AIProvider(rawValue: UserDefaults.standard.string(forKey: "llmProvider") ?? "") ?? .groq
         llmProvider = savedLLMProvider
         customBaseURL = UserDefaults.standard.string(forKey: "customBaseURL") ?? ""
@@ -342,7 +360,7 @@ final class AppState {
         accessibilityWasGranted = PermissionService.isAccessibilityGranted()
 
         Task {
-            await loadSelectedModel()
+            if transcriptionProvider == .parakeet { await loadParakeet() } else { await loadSelectedModel() }
             for provider in providersInUse where hasCredentials(provider) {
                 await verifyProvider(provider)
             }
@@ -580,7 +598,8 @@ final class AppState {
 
     func startDictation() async {
         guard isReady else {
-            status = .error(transcriptionProvider.cloudProvider.map { "\($0.displayName) isn't set up" } ?? "No model loaded")
+            status = .error(transcriptionProvider.cloudProvider.map { "\($0.displayName) isn't set up" }
+                ?? (parakeetDownloadProgress != nil ? "Parakeet is still downloading" : "No model loaded"))
             try? await Task.sleep(for: .seconds(2))
             status = .idle
             return
@@ -649,6 +668,8 @@ final class AppState {
         switch transcriptionProvider {
         case .local:
             transcribed = await transcriptionService.stopRecordingAndTranscribe(includePunctuation: includePunctuation, language: lang, initialPrompt: prompt)
+        case .parakeet:
+            transcribed = await transcriptionService.stopRecordingAndTranscribe(with: parakeetService, includePunctuation: includePunctuation)
         case .groq, .openai, .custom:
             let cloud = transcriptionProvider.cloudProvider ?? .groq
             transcribed = await transcriptionService.stopRecordingAndTranscribeRemotely(
@@ -876,6 +897,39 @@ final class AppState {
         } catch {
             providerStatus[provider] = .error(provider.runsOnThisMac ? "Not running" : "Connection failed")
         }
+    }
+
+    func selectParakeet(_ model: ParakeetModel) {
+        parakeetModel = model
+        if transcriptionProvider == .parakeet {
+            Task { await loadParakeet() }
+        } else {
+            transcriptionProvider = .parakeet
+        }
+    }
+
+    func deleteParakeet(_ model: ParakeetModel) {
+        parakeetService.delete(model)
+        if model == parakeetModel { isParakeetLoaded = false }
+    }
+
+    func loadParakeet() async {
+        let model = parakeetModel
+        isParakeetLoaded = false
+        if !parakeetService.isDownloaded(model) { parakeetDownloadProgress = 0 }
+        do {
+            try await parakeetService.load(model) { [weak self] fraction in
+                if self?.parakeetDownloadProgress != nil { self?.parakeetDownloadProgress = fraction }
+            }
+            guard model == parakeetModel, transcriptionProvider == .parakeet else { return }
+            isParakeetLoaded = true
+        } catch {
+            print("[wave] parakeet load error: \(error)")
+            status = .error("Couldn't load Parakeet")
+            try? await Task.sleep(for: .seconds(2))
+            status = .idle
+        }
+        parakeetDownloadProgress = nil
     }
 
     func loadSelectedModel() async {

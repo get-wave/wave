@@ -69,6 +69,20 @@ final class TranscriptionService: NSObject, AVAudioRecorderDelegate {
         }
     }
 
+    func stopRecordingAndTranscribe(with parakeet: ParakeetService, includePunctuation: Bool) async -> String? {
+        await recorder.stopRecording()
+        defer { deleteRecording() }
+        guard let recordedFile else { return nil }
+        do {
+            let samples = try decodeWaveFile(recordedFile)
+            guard let text = try await parakeet.transcribe(samples) else { return nil }
+            return Self.clean(text, includePunctuation: includePunctuation)
+        } catch {
+            print("[wave] parakeet transcription error: \(error)")
+            return nil
+        }
+    }
+
     func stopRecordingAndTranscribeRemotely(baseURL: String, apiKey: String, model: String, includePunctuation: Bool, language: String? = nil, initialPrompt: String? = nil) async -> String? {
         await recorder.stopRecording()
         defer { deleteRecording() }

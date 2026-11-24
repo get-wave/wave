@@ -20,7 +20,13 @@ struct ProviderPickerView: View {
                 .buttonStyle(.waveIcon)
             }
 
-            Picker("", selection: $state.transcriptionProvider) {
+            Picker("", selection: Binding(
+                get: { appState.transcriptionProvider.isOnDevice ? .local : appState.transcriptionProvider },
+                set: { choice in
+                    guard !(choice == .local && appState.transcriptionProvider.isOnDevice) else { return }
+                    appState.transcriptionProvider = choice
+                }
+            )) {
                 Text("On this Mac").tag(TranscriptionProvider.local)
                 Text("Groq").tag(TranscriptionProvider.groq)
                 Text("OpenAI").tag(TranscriptionProvider.openai)
@@ -42,14 +48,22 @@ struct ProviderPickerView: View {
 
     @ViewBuilder
     private var localContent: some View {
-        ScrollView {
-            VStack(spacing: 8) {
-                ForEach(WhisperModel.available) { model in
-                    modelRow(model)
-                }
+        WaveSection("Parakeet \u{00B7} fastest") {
+            ForEach(ParakeetModel.allCases) { model in
+                parakeetRow(model)
             }
         }
-        .frame(maxHeight: 260)
+
+        WaveSection("Whisper \u{00B7} 99 languages") {
+            ScrollView {
+                VStack(spacing: 8) {
+                    ForEach(WhisperModel.available) { model in
+                        modelRow(model)
+                    }
+                }
+            }
+            .frame(maxHeight: 200)
+        }
 
         HStack {
             Text("Or locate a model file:")
@@ -63,7 +77,7 @@ struct ProviderPickerView: View {
                 panel.allowsMultipleSelection = false
                 if panel.runModal() == .OK, let url = panel.url {
                     appState.modelManager.selectModelAtPath(url.path)
-                    Task { await appState.loadSelectedModel() }
+                    useWhisper()
                 }
             }
             .buttonStyle(.wave)
@@ -100,12 +114,74 @@ struct ProviderPickerView: View {
         }
     }
 
+    private func useWhisper() {
+        if appState.transcriptionProvider == .local {
+            Task { await appState.loadSelectedModel() }
+        } else {
+            appState.transcriptionProvider = .local
+        }
+    }
+
+    // MARK: - Parakeet row
+
+    @ViewBuilder
+    private func parakeetRow(_ model: ParakeetModel) -> some View {
+        let isCurrent = appState.transcriptionProvider == .parakeet && appState.parakeetModel == model
+        let isDownloaded = appState.parakeetService.isDownloaded(model)
+
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.name)
+                    .font(WaveFont.bodyEmphasis)
+                Text(model.detail)
+                    .font(WaveFont.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            if isCurrent, let progress = appState.parakeetDownloadProgress {
+                HStack(spacing: 8) {
+                    ProgressView(value: progress)
+                        .frame(width: 60)
+                    Text("\(Int(progress * 100))%")
+                        .font(WaveFont.caption.monospacedDigit())
+                }
+            } else if isCurrent && !appState.isParakeetLoaded {
+                ProgressView().controlSize(.small)
+            } else if isCurrent {
+                HStack(spacing: 8) {
+                    Label("Active", systemImage: "checkmark.circle.fill")
+                        .font(WaveFont.detail)
+                        .foregroundStyle(Color.waveSuccess)
+                    Button(action: { appState.deleteParakeet(model) }) {
+                        Image(systemName: "trash")
+                    }
+                    .buttonStyle(.waveIconDestructive)
+                }
+            } else {
+                HStack(spacing: 6) {
+                    Button(isDownloaded ? "Use" : "Download") { appState.selectParakeet(model) }
+                        .buttonStyle(.wave)
+                    if isDownloaded {
+                        Button(action: { appState.deleteParakeet(model) }) {
+                            Image(systemName: "trash")
+                        }
+                        .buttonStyle(.waveIconDestructive)
+                    }
+                }
+            }
+        }
+        .waveCard(tint: isCurrent ? .brand : nil)
+    }
+
     // MARK: - Local model row
 
     @ViewBuilder
     private func modelRow(_ model: WhisperModel) -> some View {
         let isDownloaded = appState.modelManager.isDownloaded(model)
-        let isSelected = appState.modelManager.selectedModelPath == appState.modelManager.fileURL(for: model).path
+        let isSelected = appState.transcriptionProvider == .local
+            && appState.modelManager.selectedModelPath == appState.modelManager.fileURL(for: model).path
         let isDownloading = appState.modelManager.downloadingModelId == model.id.uuidString
 
         HStack {
@@ -142,7 +218,7 @@ struct ProviderPickerView: View {
                 HStack(spacing: 6) {
                     Button("Use") {
                         appState.modelManager.selectModel(model)
-                        Task { await appState.loadSelectedModel() }
+                        useWhisper()
                     }
                     .buttonStyle(.wave)
                     Button(action: { appState.modelManager.deleteModel(model) }) {
