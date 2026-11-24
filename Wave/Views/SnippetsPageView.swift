@@ -107,7 +107,7 @@ private struct SnippetSheet: View {
     var isEditing: Bool { snippet != nil }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: WaveSpacing.section) {
             Text(isEditing ? "Edit Snippet" : "New Snippet")
                 .font(WaveFont.sheetTitle)
 
@@ -146,7 +146,7 @@ private struct SnippetSheet: View {
                 .disabled(name.isEmpty || value.isEmpty)
             }
         }
-        .padding(20)
+        .padding(WaveSpacing.sheet)
         .frame(width: 320)
         .onAppear {
             if let snippet {
