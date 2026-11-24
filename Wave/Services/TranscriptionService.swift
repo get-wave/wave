@@ -69,16 +69,30 @@ final class TranscriptionService: NSObject, AVAudioRecorderDelegate {
         }
     }
 
-    func stopRecordingAndTranscribeWithGroq(apiKey: String, model: String, includePunctuation: Bool, language: String? = nil, initialPrompt: String? = nil) async -> String? {
+    func stopRecordingAndTranscribe(with parakeet: ParakeetService, includePunctuation: Bool) async -> String? {
+        await recorder.stopRecording()
+        defer { deleteRecording() }
+        guard let recordedFile else { return nil }
+        do {
+            let samples = try decodeWaveFile(recordedFile)
+            guard let text = try await parakeet.transcribe(samples) else { return nil }
+            return Self.clean(text, includePunctuation: includePunctuation)
+        } catch {
+            print("[wave] parakeet transcription error: \(error)")
+            return nil
+        }
+    }
+
+    func stopRecordingAndTranscribeRemotely(baseURL: String, apiKey: String, model: String, includePunctuation: Bool, language: String? = nil, initialPrompt: String? = nil) async -> String? {
         await recorder.stopRecording()
         defer { deleteRecording() }
         guard let recordedFile = recordedFile else { return nil }
         guard let fileData = try? Data(contentsOf: recordedFile) else { return nil }
 
-        let url = URL(string: "https://api.groq.com/openai/v1/audio/transcriptions")!
+        guard let url = URL(string: "\(baseURL)/audio/transcriptions") else { return nil }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        if !apiKey.isEmpty { request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization") }
 
         let boundary = UUID().uuidString
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
@@ -116,12 +130,12 @@ final class TranscriptionService: NSObject, AVAudioRecorderDelegate {
 
         do {
             let (data, _) = try await URLSession.shared.data(for: request)
-            struct GroqResponse: Decodable { let text: String }
-            let response = try JSONDecoder().decode(GroqResponse.self, from: data)
+            struct TranscriptionResponse: Decodable { let text: String }
+            let response = try JSONDecoder().decode(TranscriptionResponse.self, from: data)
             let cleaned = Self.clean(response.text, includePunctuation: includePunctuation)
             return cleaned
         } catch {
-            print("[wave] groq error: \(error)")
+            print("[wave] remote transcription error: \(error)")
             return nil
         }
     }
@@ -134,11 +148,13 @@ final class TranscriptionService: NSObject, AVAudioRecorderDelegate {
         let totalTime: Double
     }
 
-    func sendToAI(text: String, apiKey: String, model: String, systemPrompt: String) async -> AIResult {
-        let url = URL(string: "https://api.groq.com/openai/v1/chat/completions")!
+    func sendToAI(text: String, baseURL: String, apiKey: String, model: String, systemPrompt: String) async -> AIResult {
+        guard let url = URL(string: "\(baseURL)/chat/completions") else {
+            return AIResult(text: nil, promptTokens: 0, completionTokens: 0, totalTokens: 0, totalTime: 0)
+        }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        if !apiKey.isEmpty { request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization") }
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let body: [String: Any] = [
@@ -162,7 +178,7 @@ final class TranscriptionService: NSObject, AVAudioRecorderDelegate {
                 let promptTokens: Int
                 let completionTokens: Int
                 let totalTokens: Int
-                let totalTime: Double
+                let totalTime: Double?
                 enum CodingKeys: String, CodingKey {
                     case promptTokens = "prompt_tokens"
                     case completionTokens = "completion_tokens"

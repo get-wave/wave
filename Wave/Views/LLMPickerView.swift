@@ -27,23 +27,25 @@ struct LLMPickerView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
 
-    // Merge fetched models with hardcoded pricing; fall back to hardcoded list if none fetched
+    private var showsPricing: Bool { appState.llmProvider == .groq }
+
+    /// Fetched models with Groq pricing where known; Groq falls back to the built-in list.
     private var displayModels: [LLMModel] {
-        let fetched = appState.groqFetchedModels
-        if fetched.isEmpty { return llmModels }
+        let fetched = appState.fetchedModels
+        if fetched.isEmpty { return showsPricing ? llmModels : [] }
         return fetched.map { id in
-            if let known = pricingLookup[id] { return known }
-            // Unknown model — show id without pricing
-            let name = id.split(separator: "/").last.map(String.init) ?? id
-            return LLMModel(id: id, name: name, inputPer1M: "—", outputPer1M: "—", context: "—")
+            if showsPricing, let known = pricingLookup[id] { return known }
+            return LLMModel(id: id, name: id, inputPer1M: "\u{2014}", outputPer1M: "\u{2014}", context: "\u{2014}")
         }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        @Bindable var state = appState
+
+        VStack(alignment: .leading, spacing: WaveSpacing.section) {
             HStack {
                 Text("AI Model")
-                    .font(.title3.bold())
+                    .font(WaveFont.sheetTitle)
                 Spacer()
                 Button(action: { dismiss() }) {
                     Image(systemName: "xmark.circle.fill")
@@ -52,40 +54,79 @@ struct LLMPickerView: View {
                 .buttonStyle(.waveIcon)
             }
 
-            // Header row
-            HStack(spacing: 0) {
-                Text("Model")
-                    .font(WaveFont.sectionHeader)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Text("Input/1M")
-                    .font(WaveFont.sectionHeader)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 70, alignment: .trailing)
-                Text("Output/1M")
-                    .font(WaveFont.sectionHeader)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 75, alignment: .trailing)
-                Text("Context")
-                    .font(WaveFont.sectionHeader)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 60, alignment: .trailing)
-                Spacer().frame(width: 60)
-            }
-            .padding(.horizontal, 12)
-
-            Divider()
-
-            ScrollView {
-                VStack(spacing: 6) {
-                    ForEach(displayModels) { model in
-                        modelRow(model)
+            WaveSection("Provider") {
+                HStack(spacing: 6) {
+                    Picker("", selection: $state.llmProvider) {
+                        ForEach(AIProvider.allCases) { provider in
+                            Text(provider.displayName).tag(provider)
+                        }
                     }
+                    .labelsHidden()
+                    .frame(width: 160)
+                    Button("Refresh") { Task { await appState.verifyProvider(appState.llmProvider) } }
+                        .buttonStyle(.wave)
+                        .disabled(!appState.hasCredentials(appState.llmProvider))
+                    Spacer()
+                }
+                Text(providerHint)
+                    .font(WaveFont.caption)
+                    .foregroundStyle(appState.hasCredentials(appState.llmProvider) ? .secondary : Color.waveWarning)
+            }
+
+            WaveSection("Model") {
+                TextField("Model name", text: $state.aiModel)
+                    .textFieldStyle(.roundedBorder)
+                    .font(WaveFont.mono)
+
+                if !displayModels.isEmpty {
+                    if showsPricing {
+                        HStack(spacing: 0) {
+                            Text("Model")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Text("Input/1M")
+                                .frame(width: 70, alignment: .trailing)
+                            Text("Output/1M")
+                                .frame(width: 75, alignment: .trailing)
+                            Text("Context")
+                                .frame(width: 60, alignment: .trailing)
+                            Spacer().frame(width: 60)
+                        }
+                        .font(WaveFont.sectionHeader)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, WaveSpacing.card)
+                    }
+
+                    ScrollView {
+                        VStack(spacing: 6) {
+                            ForEach(displayModels) { model in
+                                modelRow(model)
+                            }
+                        }
+                    }
+                    .frame(maxHeight: 180)
                 }
             }
-            .frame(maxHeight: 340)
+
+            WaveSection("AI Mode Prompt") {
+                TextEditor(text: $state.llmSystemPrompt)
+                    .font(WaveFont.detail)
+                    .frame(height: 64)
+                    .scrollContentBackground(.hidden)
+                    .waveField()
+            }
         }
-        .padding()
+        .padding(WaveSpacing.sheet)
+    }
+
+    private var providerHint: String {
+        let provider = appState.llmProvider
+        if !appState.hasCredentials(provider) {
+            return "Set up \(provider.displayName) under Models \u{2192} Connections to use it."
+        }
+        if provider.runsOnThisMac {
+            return "Runs on this Mac. Start \(provider.displayName) and load a model, then press Refresh."
+        }
+        return "Text you send to AI Mode and transforms goes to \(provider.displayName)."
     }
 
     @ViewBuilder
@@ -95,19 +136,23 @@ struct LLMPickerView: View {
         HStack(spacing: 0) {
             Text(model.name)
                 .font(isSelected ? WaveFont.bodyEmphasis : WaveFont.body)
+                .lineLimit(1)
+                .truncationMode(.middle)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Text(model.inputPer1M)
-                .font(WaveFont.detail.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(width: 70, alignment: .trailing)
-            Text(model.outputPer1M)
-                .font(WaveFont.detail.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(width: 75, alignment: .trailing)
-            Text(model.context)
-                .font(WaveFont.detail)
-                .foregroundStyle(.secondary)
-                .frame(width: 60, alignment: .trailing)
+            if showsPricing {
+                Text(model.inputPer1M)
+                    .font(WaveFont.detail.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .frame(width: 70, alignment: .trailing)
+                Text(model.outputPer1M)
+                    .font(WaveFont.detail.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .frame(width: 75, alignment: .trailing)
+                Text(model.context)
+                    .font(WaveFont.detail)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 60, alignment: .trailing)
+            }
             HStack {
                 Spacer()
                 if isSelected {

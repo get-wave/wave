@@ -33,11 +33,11 @@ struct TransformsView: View {
                         set: { appState.autoPolishDictations = $0 }
                     ))
                     .font(WaveFont.body)
-                    .disabled(appState.groqAPIKey.isEmpty)
+                    .disabled(!appState.isLLMReady)
 
-                    Text(appState.groqAPIKey.isEmpty
-                         ? "Requires a Groq API key. If polishing fails, the original transcription is pasted."
-                         : "Uses Groq after transcription. If polishing fails, the original transcription is pasted.")
+                    Text(appState.isLLMReady
+                         ? "Uses \(appState.llmProvider.displayName) after transcription. If polishing fails, the original transcription is pasted."
+                         : "Requires an AI provider, set up in Models. If polishing fails, the original transcription is pasted.")
                         .font(WaveFont.caption)
                         .foregroundStyle(.secondary)
                 }

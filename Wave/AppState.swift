@@ -8,8 +8,10 @@ enum DictationMode: String, CaseIterable {
 }
 
 enum TranscriptionProvider: String {
-    case local = "local"
-    case groq = "groq"
+    case local, parakeet, groq, openai, custom
+
+    var cloudProvider: AIProvider? { AIProvider(rawValue: rawValue) }
+    var isOnDevice: Bool { cloudProvider == nil }
 }
 
 enum AppStatus: Equatable {
@@ -20,7 +22,7 @@ enum AppStatus: Equatable {
     case error(String)
 }
 
-enum GroqAPIStatus: Equatable {
+enum ProviderStatus: Equatable {
     case unknown
     case checking
     case operational
@@ -71,17 +73,51 @@ final class AppState {
     var transcriptionProvider: TranscriptionProvider {
         didSet {
             UserDefaults.standard.set(transcriptionProvider.rawValue, forKey: "transcriptionProvider")
-            if transcriptionProvider == .groq {
+            guard transcriptionProvider != oldValue else { return }
+            if transcriptionProvider != .local {
                 transcriptionService.unloadModel()
                 isModelLoaded = false
             }
+            if transcriptionProvider != .parakeet {
+                parakeetService.unload()
+                isParakeetLoaded = false
+            }
+            switch transcriptionProvider {
+            case .local: Task { await loadSelectedModel() }
+            case .parakeet: Task { await loadParakeet() }
+            case .groq, .openai, .custom:
+                cloudTranscriptionModel = transcriptionProvider.cloudProvider?.transcriptionModels.first ?? ""
+            }
         }
     }
-    var groqAPIKey: String {
-        didSet { KeychainService.set(groqAPIKey, for: "groqAPIKey") }
+    var parakeetModel: ParakeetModel {
+        didSet { UserDefaults.standard.set(parakeetModel.rawValue, forKey: "parakeetModel") }
     }
-    var groqModel: String {
-        didSet { UserDefaults.standard.set(groqModel, forKey: "groqModel") }
+    var parakeetDownloadProgress: Double?
+    var isParakeetLoaded = false
+    /// Speech-to-text model for the cloud transcription provider (persisted under its original Groq key).
+    var cloudTranscriptionModel: String {
+        didSet { UserDefaults.standard.set(cloudTranscriptionModel, forKey: "groqModel") }
+    }
+    var llmProvider: AIProvider {
+        didSet {
+            UserDefaults.standard.set(llmProvider.rawValue, forKey: "llmProvider")
+            guard llmProvider != oldValue else { return }
+            aiModel = llmProvider.defaultChatModel
+            fetchedModels = UserDefaults.standard.stringArray(forKey: "fetchedModels.\(llmProvider.rawValue)") ?? []
+            Task { await verifyProvider(llmProvider) }
+        }
+    }
+    /// API keys by provider. Secrets live in the Keychain, never in UserDefaults.
+    var apiKeys: [AIProvider: String] {
+        didSet {
+            for provider in AIProvider.allCases where oldValue[provider] != apiKeys[provider] {
+                KeychainService.set(apiKeys[provider] ?? "", for: provider.keychainAccount)
+            }
+        }
+    }
+    var customBaseURL: String {
+        didSet { UserDefaults.standard.set(customBaseURL, forKey: "customBaseURL") }
     }
     var transcriptionLanguage: String {
         didSet { UserDefaults.standard.set(transcriptionLanguage, forKey: "transcriptionLanguage") }
@@ -104,9 +140,9 @@ final class AppState {
         didSet { UserDefaults.standard.set(autoPolishDictations, forKey: "autoPolishDictations") }
     }
 
-    // MARK: - Groq
-    var groqAPIStatus: GroqAPIStatus = .unknown
-    var groqFetchedModels: [String] = []
+    // MARK: - Providers
+    var providerStatus: [AIProvider: ProviderStatus] = [:]
+    var fetchedModels: [String] = []
 
     // MARK: - Usage (cumulative, persisted)
     var usagePromptTokens: Int {
@@ -159,6 +195,7 @@ final class AppState {
     let snippetManager = SnippetManager()
     let microphoneManager = MicrophoneManager()
     let transformManager = TransformManager()
+    let parakeetService = ParakeetService()
     var isModelLoaded = false   // tracked by @Observable — TranscriptionService is not
     var isAIMode = false
     var selectedContext: String? = nil
@@ -166,8 +203,30 @@ final class AppState {
     var isReady: Bool {
         switch transcriptionProvider {
         case .local: return isModelLoaded
-        case .groq: return !groqAPIKey.isEmpty
+        case .parakeet: return isParakeetLoaded
+        case .groq, .openai, .custom: return transcriptionProvider.cloudProvider.map(hasCredentials) ?? false
         }
+    }
+
+    var isLLMReady: Bool { hasCredentials(llmProvider) && !aiModel.isEmpty }
+
+    func apiKey(for provider: AIProvider) -> String { apiKeys[provider] ?? "" }
+
+    func baseURL(for provider: AIProvider) -> String {
+        let url = provider == .custom ? customBaseURL : provider.defaultBaseURL
+        return url.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    }
+
+    func hasCredentials(_ provider: AIProvider) -> Bool {
+        !baseURL(for: provider).isEmpty && (!provider.requiresAPIKey || !apiKey(for: provider).isEmpty)
+    }
+
+    /// Providers the user currently relies on, speech first, without duplicates.
+    var providersInUse: [AIProvider] {
+        var providers: [AIProvider] = []
+        if let cloud = transcriptionProvider.cloudProvider { providers.append(cloud) }
+        if !providers.contains(llmProvider) { providers.append(llmProvider) }
+        return providers
     }
 
     // MARK: - Overlay
@@ -224,11 +283,17 @@ final class AppState {
         customVocabulary = UserDefaults.standard.stringArray(forKey: "customVocabulary") ?? []
         transcriptionProvider = TranscriptionProvider(rawValue: UserDefaults.standard.string(forKey: "transcriptionProvider") ?? "") ?? .local
         if let legacyKey = UserDefaults.standard.string(forKey: "groqAPIKey") {
-            KeychainService.set(legacyKey, for: "groqAPIKey")
+            KeychainService.set(legacyKey, for: AIProvider.groq.keychainAccount)
             UserDefaults.standard.removeObject(forKey: "groqAPIKey")
         }
-        groqAPIKey = KeychainService.string(for: "groqAPIKey") ?? ""
-        groqModel = UserDefaults.standard.string(forKey: "groqModel") ?? "whisper-large-v3-turbo"
+        apiKeys = Dictionary(uniqueKeysWithValues: AIProvider.allCases.compactMap { provider in
+            KeychainService.string(for: provider.keychainAccount).map { (provider, $0) }
+        })
+        cloudTranscriptionModel = UserDefaults.standard.string(forKey: "groqModel") ?? "whisper-large-v3-turbo"
+        parakeetModel = ParakeetModel(rawValue: UserDefaults.standard.string(forKey: "parakeetModel") ?? "") ?? .ultra
+        let savedLLMProvider = AIProvider(rawValue: UserDefaults.standard.string(forKey: "llmProvider") ?? "") ?? .groq
+        llmProvider = savedLLMProvider
+        customBaseURL = UserDefaults.standard.string(forKey: "customBaseURL") ?? ""
         transcriptionLanguage = UserDefaults.standard.string(forKey: "transcriptionLanguage") ?? "auto"
         selectedMicUID = UserDefaults.standard.string(forKey: "selectedMicUID") ?? ""
         aiModeKeyCode = UInt16(UserDefaults.standard.integer(forKey: "aiModeKeyCode"))
@@ -238,7 +303,8 @@ final class AppState {
         pasteLastHotkeyKeyCode = UInt16(UserDefaults.standard.integer(forKey: "pasteLastHotkeyKeyCode"))
         pasteLastHotkeyModifiers = UInt64(UserDefaults.standard.integer(forKey: "pasteLastHotkeyModifiers"))
         aiModel = UserDefaults.standard.string(forKey: "aiModel") ?? "openai/gpt-oss-20b"
-        groqFetchedModels = UserDefaults.standard.stringArray(forKey: "groqFetchedModels") ?? []
+        fetchedModels = UserDefaults.standard.stringArray(forKey: "fetchedModels.\(savedLLMProvider.rawValue)")
+            ?? (savedLLMProvider == .groq ? UserDefaults.standard.stringArray(forKey: "groqFetchedModels") ?? [] : [])
         whisperPrompt = UserDefaults.standard.string(forKey: "whisperPrompt") ?? ""
         llmSystemPrompt = UserDefaults.standard.string(forKey: "llmSystemPrompt") ?? "You are a concise assistant inside a macOS voice dictation app. The user spoke their request and it was transcribed. Answer directly — no preamble, no filler, no sign-off. If the answer is a single word or number, just say it. Match the brevity of the question."
         autoPolishDictations = UserDefaults.standard.bool(forKey: "autoPolishDictations")
@@ -294,8 +360,10 @@ final class AppState {
         accessibilityWasGranted = PermissionService.isAccessibilityGranted()
 
         Task {
-            await loadSelectedModel()
-            if !groqAPIKey.isEmpty { await verifyAndFetchGroqModels() }
+            if transcriptionProvider == .parakeet { await loadParakeet() } else { await loadSelectedModel() }
+            for provider in providersInUse where hasCredentials(provider) {
+                await verifyProvider(provider)
+            }
             setupHotkey()
             await MainActor.run { startPersistentOverlay() }
         }
@@ -530,7 +598,8 @@ final class AppState {
 
     func startDictation() async {
         guard isReady else {
-            status = .error(transcriptionProvider == .groq ? "Groq API key required" : "No model loaded")
+            status = .error(transcriptionProvider.cloudProvider.map { "\($0.displayName) isn't set up" }
+                ?? (parakeetDownloadProgress != nil ? "Parakeet is still downloading" : "No model loaded"))
             try? await Task.sleep(for: .seconds(2))
             status = .idle
             return
@@ -599,10 +668,14 @@ final class AppState {
         switch transcriptionProvider {
         case .local:
             transcribed = await transcriptionService.stopRecordingAndTranscribe(includePunctuation: includePunctuation, language: lang, initialPrompt: prompt)
-        case .groq:
-            transcribed = await transcriptionService.stopRecordingAndTranscribeWithGroq(
-                apiKey: groqAPIKey,
-                model: groqModel,
+        case .parakeet:
+            transcribed = await transcriptionService.stopRecordingAndTranscribe(with: parakeetService, includePunctuation: includePunctuation)
+        case .groq, .openai, .custom:
+            let cloud = transcriptionProvider.cloudProvider ?? .groq
+            transcribed = await transcriptionService.stopRecordingAndTranscribeRemotely(
+                baseURL: baseURL(for: cloud),
+                apiKey: apiKey(for: cloud),
+                model: cloudTranscriptionModel,
                 includePunctuation: includePunctuation,
                 language: lang,
                 initialPrompt: prompt
@@ -611,7 +684,7 @@ final class AppState {
         if muteSystemAudio { SystemAudioDucker.restore() }
 
         var text: String?
-        if isAIMode, let query = transcribed, !query.isEmpty, !groqAPIKey.isEmpty {
+        if isAIMode, let query = transcribed, !query.isEmpty, isLLMReady {
             var fullPrompt = llmSystemPrompt
             if !snippetManager.snippets.isEmpty {
                 let snippetLines = snippetManager.snippets.map { "- \($0.name): \($0.value)" }.joined(separator: "\n")
@@ -621,7 +694,7 @@ final class AppState {
             if let context = selectedContext {
                 userMessage = "Selected text:\n\"\"\"\n\(context)\n\"\"\"\n\nInstruction: \(query)"
             }
-            let result = await transcriptionService.sendToAI(text: userMessage, apiKey: groqAPIKey, model: aiModel, systemPrompt: fullPrompt)
+            let result = await transcriptionService.sendToAI(text: userMessage, baseURL: baseURL(for: llmProvider), apiKey: apiKey(for: llmProvider), model: aiModel, systemPrompt: fullPrompt)
             usagePromptTokens += result.promptTokens
             usageCompletionTokens += result.completionTokens
             usageTotalTokens += result.totalTokens
@@ -632,7 +705,7 @@ final class AppState {
             text = transcribed
         }
 
-        if autoPolishDictations, !groqAPIKey.isEmpty, !isAIMode, let originalText = text, !originalText.isEmpty {
+        if autoPolishDictations, isLLMReady, !isAIMode, let originalText = text, !originalText.isEmpty {
             status = .transforming
             updateOverlay()
             text = await runTransform(
@@ -689,8 +762,8 @@ final class AppState {
         guard status == .idle else { return }
         guard transform.isEnabled else { return }
 
-        guard !groqAPIKey.isEmpty else {
-            await showTransformError("Groq API key required")
+        guard isLLMReady else {
+            await showTransformError("Set up an AI provider in Models")
             return
         }
 
@@ -759,7 +832,8 @@ final class AppState {
         let input = "<selected_text>\n\(text)\n</selected_text>"
         let result = await transcriptionService.sendToAI(
             text: input,
-            apiKey: groqAPIKey,
+            baseURL: baseURL(for: llmProvider),
+            apiKey: apiKey(for: llmProvider),
             model: aiModel,
             systemPrompt: systemPrompt
         )
@@ -782,37 +856,80 @@ final class AppState {
         }
     }
 
-    func verifyAndFetchGroqModels() async {
-        guard !groqAPIKey.isEmpty else { groqAPIStatus = .unknown; return }
-        groqAPIStatus = .checking
+    /// Checks a provider's connection and, for the AI provider, refreshes its chat models.
+    func verifyProvider(_ provider: AIProvider) async {
+        let base = baseURL(for: provider)
+        guard hasCredentials(provider), let url = URL(string: "\(base)/models") else {
+            providerStatus[provider] = nil
+            return
+        }
+        providerStatus[provider] = .checking
 
-        let url = URL(string: "https://api.groq.com/openai/v1/models")!
         var request = URLRequest(url: url)
-        request.setValue("Bearer \(groqAPIKey)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 10
+        let key = apiKey(for: provider)
+        if !key.isEmpty { request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization") }
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-                groqAPIStatus = .error("Invalid API key")
+            guard let http = response as? HTTPURLResponse else {
+                providerStatus[provider] = .error("No response")
                 return
             }
-            struct GroqModelEntry: Decodable {
-                let id: String
-                let active: Bool
-                enum CodingKeys: String, CodingKey { case id, active }
+            guard http.statusCode == 200 else {
+                providerStatus[provider] = .error(http.statusCode == 401 || http.statusCode == 403 ? "Invalid API key" : "Error \(http.statusCode)")
+                return
             }
-            struct GroqModelList: Decodable { let data: [GroqModelEntry] }
-            let list = try JSONDecoder().decode(GroqModelList.self, from: data)
-            let chatModels = list.data
-                .filter { $0.active && !$0.id.localizedCaseInsensitiveContains("whisper") && !$0.id.localizedCaseInsensitiveContains("distil") }
-                .map { $0.id }
+            struct ModelEntry: Decodable { let id: String; let active: Bool? }
+            struct ModelList: Decodable { let data: [ModelEntry] }
+            let nonChat = ["whisper", "distil", "tts", "embed", "dall-e", "moderation", "transcribe", "audio", "realtime", "image", "davinci", "babbage", "guard"]
+            let chatModels = try JSONDecoder().decode(ModelList.self, from: data).data
+                .filter { $0.active != false }
+                .map(\.id)
+                .filter { id in !nonChat.contains { id.localizedCaseInsensitiveContains($0) } }
                 .sorted()
-            groqFetchedModels = chatModels
-            UserDefaults.standard.set(chatModels, forKey: "groqFetchedModels")
-            groqAPIStatus = .operational
+            if provider == llmProvider {
+                fetchedModels = chatModels
+                UserDefaults.standard.set(chatModels, forKey: "fetchedModels.\(provider.rawValue)")
+                if aiModel.isEmpty, let first = chatModels.first { aiModel = first }
+            }
+            providerStatus[provider] = .operational
         } catch {
-            groqAPIStatus = .error("Connection failed")
+            providerStatus[provider] = .error(provider.runsOnThisMac ? "Not running" : "Connection failed")
         }
+    }
+
+    func selectParakeet(_ model: ParakeetModel) {
+        parakeetModel = model
+        if transcriptionProvider == .parakeet {
+            Task { await loadParakeet() }
+        } else {
+            transcriptionProvider = .parakeet
+        }
+    }
+
+    func deleteParakeet(_ model: ParakeetModel) {
+        parakeetService.delete(model)
+        if model == parakeetModel { isParakeetLoaded = false }
+    }
+
+    func loadParakeet() async {
+        let model = parakeetModel
+        isParakeetLoaded = false
+        if !parakeetService.isDownloaded(model) { parakeetDownloadProgress = 0 }
+        do {
+            try await parakeetService.load(model) { [weak self] fraction in
+                if self?.parakeetDownloadProgress != nil { self?.parakeetDownloadProgress = fraction }
+            }
+            guard model == parakeetModel, transcriptionProvider == .parakeet else { return }
+            isParakeetLoaded = true
+        } catch {
+            print("[wave] parakeet load error: \(error)")
+            status = .error("Couldn't load Parakeet")
+            try? await Task.sleep(for: .seconds(2))
+            status = .idle
+        }
+        parakeetDownloadProgress = nil
     }
 
     func loadSelectedModel() async {

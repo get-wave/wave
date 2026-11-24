@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		3C06E02C2F534ACA00CD3EDD /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 3C06E02B2F534ACA00CD3EDD /* Sparkle */; };
+		4F1A0D0C2F70000000DBB766 /* FluidAudio in Frameworks */ = {isa = PBXBuildFile; productRef = 4F1A0D0B2F70000000DBB766 /* FluidAudio */; };
+		4F1A0D0E2F70000000DBB766 /* FluidAudio in Frameworks */ = {isa = PBXBuildFile; productRef = 4F1A0D0D2F70000000DBB766 /* FluidAudio */; };
 		3CA5B0012F50700000DBB766 /* whisper.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3CA5B0002F50700000DBB766 /* whisper.xcframework */; };
 		3CA5B0022F50700000DBB766 /* whisper.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 3CA5B0002F50700000DBB766 /* whisper.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		7B4E00012F60000000DBB766 /* whisper.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3CA5B0002F50700000DBB766 /* whisper.xcframework */; };
@@ -60,6 +62,7 @@
 			files = (
 				3CA5B0012F50700000DBB766 /* whisper.xcframework in Frameworks */,
 				3C06E02C2F534ACA00CD3EDD /* Sparkle in Frameworks */,
+				4F1A0D0C2F70000000DBB766 /* FluidAudio in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -68,6 +71,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				7B4E00012F60000000DBB766 /* whisper.xcframework in Frameworks */,
+				4F1A0D0E2F70000000DBB766 /* FluidAudio in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -114,6 +118,7 @@
 			name = Wave;
 			packageProductDependencies = (
 				3C06E02B2F534ACA00CD3EDD /* Sparkle */,
+				4F1A0D0B2F70000000DBB766 /* FluidAudio */,
 			);
 			productName = Wave;
 			productReference = 3CA5A78F2F5063F600DBB766 /* Wave.app */;
@@ -138,6 +143,7 @@
 			);
 			name = WaveAppStore;
 			packageProductDependencies = (
+				4F1A0D0D2F70000000DBB766 /* FluidAudio */,
 			);
 			productName = Wave;
 			productReference = 7B4E00032F60000000DBB766 /* Wave.app */;
@@ -172,6 +178,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				3C06E02A2F534ACA00CD3EDD /* XCRemoteSwiftPackageReference "Sparkle" */,
+				4F1A0D0A2F70000000DBB766 /* XCRemoteSwiftPackageReference "FluidAudio" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 3CA5A7902F5063F600DBB766 /* Products */;
@@ -627,6 +634,14 @@
 				minimumVersion = 2.9.0;
 			};
 		};
+		4F1A0D0A2F70000000DBB766 /* XCRemoteSwiftPackageReference "FluidAudio" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/FluidInference/FluidAudio";
+			requirement = {
+				kind = upToNextMinorVersion;
+				minimumVersion = 0.18.4;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -634,6 +649,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 3C06E02A2F534ACA00CD3EDD /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
+		};
+		4F1A0D0B2F70000000DBB766 /* FluidAudio */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4F1A0D0A2F70000000DBB766 /* XCRemoteSwiftPackageReference "FluidAudio" */;
+			productName = FluidAudio;
+		};
+		4F1A0D0D2F70000000DBB766 /* FluidAudio */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4F1A0D0A2F70000000DBB766 /* XCRemoteSwiftPackageReference "FluidAudio" */;
+			productName = FluidAudio;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
