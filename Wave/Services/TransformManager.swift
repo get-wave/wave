@@ -16,6 +16,7 @@ struct TransformProfile: Identifiable, Codable, Equatable {
     static let translateToEnglishID = UUID(uuidString: "8E8FC4E1-5F47-43E0-BB9C-27C9A04E2A7A")!
     static let empathizeID = UUID(uuidString: "A3C9F269-6D75-4A4B-9B2B-50B5D7D3B0A1")!
     static let makeConciseID = UUID(uuidString: "4B2A7A77-4B5F-4E12-9A86-4A8CE60D1F36")!
+    static let codingAgentID = UUID(uuidString: "D1F0C0DE-7A3B-4C5E-9F21-6B8E2A4C9D17")!
 
     static let polish = TransformProfile(
         id: polishID,
@@ -88,7 +89,29 @@ struct TransformProfile: Identifiable, Codable, Equatable {
         isBuiltIn: false
     )
 
-    static let defaultSlotProfiles = [promptEngineer, turnIntoList, translateToEnglish, empathize, makeConcise]
+    static let codingAgent = TransformProfile(
+        id: codingAgentID,
+        name: "Coding Agent",
+        prompt: """
+        Rewrite the dictated text as a clear instruction for an AI coding agent such as Claude Code, Cursor or Codex.
+
+        Apply these rules:
+        1. Keep every request, constraint and detail the speaker gave, and nothing more. Never add requirements, steps, defaults or assumptions they did not state, and never invent names of files, functions, components or types: use only the names the speaker said.
+        2. Remove filler, false starts and corrections, keeping only the final intent ("three times, no wait, five" becomes five).
+        3. Write spoken code in its written form and wrap it in backticks: file names with their extension ("app state dot swift" becomes `AppState.swift`, "design dot M D" becomes `DESIGN.md`, "package dot json" becomes `package.json`), paths, commands, flags, and function or variable names in their usual casing ("fetch user function" becomes the `fetchUser` function).
+        4. Spell product and tool names correctly, as speech recognition often mishears them (Ollama, OpenAI, Groq, GitHub, Xcode, SwiftUI, npm).
+        5. If the request has one or two steps, write one or two sentences. If it has three or more steps, write one short opening sentence, then the steps as a numbered list, then any constraints as a bulleted list under "Constraints:". Mention each instruction once, either as a step or as a constraint.
+        6. Address the agent directly in the imperative. Do not answer the request, write code, or add commentary.
+
+        Return only the rewritten instruction.
+        """,
+        keyCode: 0,
+        modifiers: 0,
+        isEnabled: true,
+        isBuiltIn: false
+    )
+
+    static let defaultSlotProfiles = [promptEngineer, codingAgent, turnIntoList, translateToEnglish, empathize, makeConcise]
 }
 
 @Observable
@@ -118,6 +141,11 @@ final class TransformManager {
                 if !loadedSlots.contains(where: { $0.id == TransformProfile.promptEngineerID }) {
                     loadedSlots.insert(.promptEngineer, at: 0)
                 }
+            }
+            if UserDefaults.standard.integer(forKey: "transformProfilesVersion") < 3,
+               !loadedSlots.contains(where: { $0.id == TransformProfile.codingAgentID }),
+               loadedSlots.count < Self.maxTransformCount {
+                loadedSlots.insert(.codingAgent, at: min(1, loadedSlots.count))
             }
             transforms = Array(loadedSlots.prefix(Self.maxTransformCount))
         } else {
@@ -160,7 +188,7 @@ final class TransformManager {
     private func save() {
         if let data = try? JSONEncoder().encode(allTransforms) {
             UserDefaults.standard.set(data, forKey: "transformProfiles")
-            UserDefaults.standard.set(2, forKey: "transformProfilesVersion")
+            UserDefaults.standard.set(3, forKey: "transformProfilesVersion")
         }
     }
 }
