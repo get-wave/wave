@@ -144,6 +144,10 @@ final class AppState {
     var autoPolishDictations: Bool {
         didSet { UserDefaults.standard.set(autoPolishDictations, forKey: "autoPolishDictations") }
     }
+    /// Blocks every request that leaves this Mac, except Sparkle's update check.
+    var offlineMode: Bool {
+        didSet { UserDefaults.standard.set(offlineMode, forKey: "offlineMode") }
+    }
 
     // MARK: - Providers
     var providerStatus: [AIProvider: ProviderStatus] = [:]
@@ -211,11 +215,31 @@ final class AppState {
         switch transcriptionProvider {
         case .local: return isModelLoaded
         case .parakeet: return isParakeetLoaded
-        case .groq, .openai, .custom: return transcriptionProvider.cloudProvider.map(hasCredentials) ?? false
+        case .groq, .openai, .custom: return transcriptionProvider.cloudProvider.map { hasCredentials($0) && !isBlockedOffline($0) } ?? false
         }
     }
 
-    var isLLMReady: Bool { hasCredentials(llmProvider) && !aiModel.isEmpty }
+    var isLLMReady: Bool { hasCredentials(llmProvider) && !aiModel.isEmpty && !isBlockedOffline(llmProvider) }
+
+    /// True when offline mode is on and the provider's server isn't on this Mac.
+    func isBlockedOffline(_ provider: AIProvider) -> Bool {
+        guard offlineMode else { return false }
+        guard let host = URL(string: baseURL(for: provider))?.host?.lowercased() else { return true }
+        return !["localhost", "127.0.0.1", "::1", "[::1]"].contains(host) && !host.hasSuffix(".localhost")
+    }
+
+    /// What offline mode turns off with the current setup, for the General page.
+    var offlineModeImpacts: [String] {
+        guard offlineMode else { return [] }
+        var impacts: [String] = []
+        if let cloud = transcriptionProvider.cloudProvider, isBlockedOffline(cloud) {
+            impacts.append("Dictation is off: speech uses \(cloud.displayName). Choose an on-device model in Models.")
+        }
+        if hasCredentials(llmProvider), isBlockedOffline(llmProvider) {
+            impacts.append("AI Mode, transforms and polish are off: AI uses \(llmProvider.displayName). Ollama or LM Studio work offline.")
+        }
+        return impacts
+    }
 
     func apiKey(for provider: AIProvider) -> String { apiKeys[provider] ?? "" }
 
@@ -315,6 +339,7 @@ final class AppState {
         whisperPrompt = UserDefaults.standard.string(forKey: "whisperPrompt") ?? ""
         llmSystemPrompt = UserDefaults.standard.string(forKey: "llmSystemPrompt") ?? "You are a concise assistant inside a macOS voice dictation app. The user spoke their request and it was transcribed. Answer directly — no preamble, no filler, no sign-off. If the answer is a single word or number, just say it. Match the brevity of the question."
         autoPolishDictations = UserDefaults.standard.bool(forKey: "autoPolishDictations")
+        offlineMode = UserDefaults.standard.bool(forKey: "offlineMode")
         usagePromptTokens = UserDefaults.standard.integer(forKey: "usagePromptTokens")
         usageCompletionTokens = UserDefaults.standard.integer(forKey: "usageCompletionTokens")
         usageTotalTokens = UserDefaults.standard.integer(forKey: "usageTotalTokens")
@@ -605,7 +630,7 @@ final class AppState {
 
     func startDictation() async {
         guard isReady else {
-            status = .error(transcriptionProvider.cloudProvider.map { "\($0.displayName) isn't set up" }
+            status = .error(transcriptionProvider.cloudProvider.map { isBlockedOffline($0) ? "Offline mode: choose on-device speech" : "\($0.displayName) isn't set up" }
                 ?? (parakeetDownloadProgress != nil ? "Parakeet is still downloading" : "No model loaded"))
             try? await Task.sleep(for: .seconds(2))
             status = .idle
@@ -698,7 +723,7 @@ final class AppState {
         var providers: [AIProvider] = []
         if let cloud = transcriptionProvider.cloudProvider { providers.append(cloud) }
         if (isAIMode || dictationTransformPrompt(for: dictationTargetBundleID) != nil) && isLLMReady && !providers.contains(llmProvider) { providers.append(llmProvider) }
-        for provider in providers where !provider.runsOnThisMac && hasCredentials(provider) {
+        for provider in providers where !provider.runsOnThisMac && hasCredentials(provider) && !isBlockedOffline(provider) {
             guard let url = URL(string: "\(baseURL(for: provider))/models") else { continue }
             var request = URLRequest(url: url)
             request.timeoutInterval = 5
@@ -842,7 +867,7 @@ final class AppState {
         guard transform.isEnabled else { return }
 
         guard isLLMReady else {
-            await showTransformError("Set up an AI provider in Models")
+            await showTransformError(isBlockedOffline(llmProvider) ? "Offline mode: AI provider is blocked" : "Set up an AI provider in Models")
             return
         }
 
@@ -942,6 +967,10 @@ final class AppState {
             providerStatus[provider] = nil
             return
         }
+        guard !isBlockedOffline(provider) else {
+            providerStatus[provider] = .error("Blocked by offline mode")
+            return
+        }
         providerStatus[provider] = .checking
 
         var request = URLRequest(url: url)
@@ -978,6 +1007,11 @@ final class AppState {
         }
     }
 
+    func downloadWhisperModel(_ model: WhisperModel) {
+        guard !offlineMode else { return }
+        modelManager.download(model)
+    }
+
     func selectParakeet(_ model: ParakeetModel) {
         parakeetModel = model
         if transcriptionProvider == .parakeet {
@@ -995,6 +1029,12 @@ final class AppState {
     func loadParakeet() async {
         let model = parakeetModel
         isParakeetLoaded = false
+        guard !offlineMode || parakeetService.isDownloaded(model) else {
+            status = .error("Offline mode: can't download Parakeet")
+            try? await Task.sleep(for: .seconds(2))
+            status = .idle
+            return
+        }
         if !parakeetService.isDownloaded(model) { parakeetDownloadProgress = 0 }
         do {
             try await parakeetService.load(model) { [weak self] fraction in
