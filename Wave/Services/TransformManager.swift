@@ -164,3 +164,58 @@ final class TransformManager {
         }
     }
 }
+
+struct AppProfile: Identifiable, Codable, Equatable {
+    var id: String { bundleID }
+    let bundleID: String
+    let appName: String
+    /// The transform run on dictations in this app; nil pastes the dictation as spoken.
+    var transformID: UUID?
+}
+
+struct InstalledApp: Identifiable {
+    var id: String { bundleID }
+    let bundleID: String
+    let name: String
+}
+
+@Observable
+final class AppProfileManager {
+    private(set) var profiles: [AppProfile] = []
+
+    init() {
+        guard let data = UserDefaults.standard.data(forKey: "appProfiles"),
+              let decoded = try? JSONDecoder().decode([AppProfile].self, from: data)
+        else { return }
+        profiles = decoded
+    }
+
+    func profile(for bundleID: String?) -> AppProfile? {
+        guard let bundleID else { return nil }
+        return profiles.first { $0.bundleID == bundleID }
+    }
+
+    func add(_ app: InstalledApp, transformID: UUID?) {
+        guard profile(for: app.bundleID) == nil else { return }
+        profiles.append(AppProfile(bundleID: app.bundleID, appName: app.name, transformID: transformID))
+        profiles.sort { $0.appName.localizedCaseInsensitiveCompare($1.appName) == .orderedAscending }
+        save()
+    }
+
+    func setTransform(_ transformID: UUID?, for bundleID: String) {
+        guard let index = profiles.firstIndex(where: { $0.bundleID == bundleID }) else { return }
+        profiles[index].transformID = transformID
+        save()
+    }
+
+    func remove(_ bundleID: String) {
+        profiles.removeAll { $0.bundleID == bundleID }
+        save()
+    }
+
+    private func save() {
+        if let data = try? JSONEncoder().encode(profiles) {
+            UserDefaults.standard.set(data, forKey: "appProfiles")
+        }
+    }
+}

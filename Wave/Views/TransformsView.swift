@@ -4,6 +4,7 @@ struct TransformsView: View {
     @Environment(AppState.self) private var appState
     @State private var editingTransform: TransformProfile?
     @State private var isAddingTransform = false
+    @State private var isAddingApp = false
 
     var body: some View {
         ScrollView {
@@ -41,6 +42,24 @@ struct TransformsView: View {
                         .font(WaveFont.caption)
                         .foregroundStyle(.secondary)
                 }
+
+                WaveSection("Per-App") {
+                    Text("Choose what happens to dictations in specific apps. Other apps follow Automatic Polish.")
+                        .font(WaveFont.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    ForEach(appState.appProfileManager.profiles) { profile in
+                        appProfileRow(profile)
+                    }
+
+                    Button {
+                        isAddingApp = true
+                    } label: {
+                        Label("Add App", systemImage: "plus")
+                    }
+                    .buttonStyle(.wave)
+                }
             }
             .padding(WaveSpacing.page)
             .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -52,6 +71,11 @@ struct TransformsView: View {
             }
             .environment(appState)
             .frame(width: 420)
+        }
+        .sheet(isPresented: $isAddingApp) {
+            AddAppProfileView()
+                .environment(appState)
+                .frame(width: 360)
         }
         .sheet(isPresented: $isAddingTransform) {
             TransformEditorView(transform: nil) { name, prompt, keyCode, modifiers in
@@ -99,8 +123,7 @@ struct TransformsView: View {
 
             if !transform.isBuiltIn {
                 Button {
-                    appState.transformManager.remove(transform)
-                    appState.setupHotkey()
+                    appState.removeTransform(transform)
                 } label: {
                     Image(systemName: "trash")
                 }
@@ -109,6 +132,113 @@ struct TransformsView: View {
         }
         .waveCard()
         .opacity(transform.isEnabled ? 1 : 0.55)
+    }
+
+    @ViewBuilder
+    private func appProfileRow(_ profile: AppProfile) -> some View {
+        HStack(spacing: 6) {
+            Image(nsImage: appState.appIcon(for: profile.bundleID))
+                .resizable()
+                .frame(width: WaveSize.appIcon, height: WaveSize.appIcon)
+            Text(profile.appName)
+                .font(WaveFont.bodyEmphasis)
+                .lineLimit(1)
+
+            Spacer()
+
+            TransformChoicePicker(selection: Binding(
+                get: { profile.transformID },
+                set: { appState.appProfileManager.setTransform($0, for: profile.bundleID) }
+            ))
+            .fixedSize()
+
+            Button {
+                appState.appProfileManager.remove(profile.bundleID)
+            } label: {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.waveIconDestructive)
+        }
+        .waveCard()
+    }
+}
+
+private struct TransformChoicePicker: View {
+    @Environment(AppState.self) private var appState
+    @Binding var selection: UUID?
+
+    var body: some View {
+        Picker("", selection: $selection) {
+            Text("Paste as spoken").tag(UUID?.none)
+            Divider()
+            ForEach(appState.transformManager.allTransforms) { transform in
+                Text(transform.name).tag(UUID?.some(transform.id))
+            }
+        }
+        .labelsHidden()
+        .font(WaveFont.body)
+    }
+}
+
+private struct AddAppProfileView: View {
+    @Environment(AppState.self) private var appState
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var apps: [InstalledApp] = []
+    @State private var search = ""
+    @State private var selectedApp: String?
+    @State private var transformID: UUID? = TransformProfile.polishID
+
+    private var filteredApps: [InstalledApp] {
+        let query = search.trimmingCharacters(in: .whitespaces)
+        return query.isEmpty ? apps : apps.filter { $0.name.localizedCaseInsensitiveContains(query) }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: WaveSpacing.section) {
+            Text("Add App")
+                .font(WaveFont.sheetTitle)
+
+            WaveSection("App") {
+                TextField("Search apps", text: $search)
+                    .textFieldStyle(.roundedBorder)
+                    .font(WaveFont.body)
+
+                List(filteredApps, selection: $selectedApp) { app in
+                    HStack(spacing: WaveSpacing.item) {
+                        Image(nsImage: appState.appIcon(for: app.bundleID))
+                            .resizable()
+                            .frame(width: WaveSize.appIcon, height: WaveSize.appIcon)
+                        Text(app.name)
+                            .font(WaveFont.body)
+                    }
+                    .tag(app.bundleID)
+                }
+                .frame(height: 200)
+                .waveField()
+            }
+
+            WaveSection("Dictations in this app") {
+                TransformChoicePicker(selection: $transformID)
+                    .fixedSize()
+            }
+
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }
+                    .buttonStyle(.waveSubtle)
+                Button("Add") {
+                    if let app = apps.first(where: { $0.bundleID == selectedApp }) {
+                        appState.appProfileManager.add(app, transformID: transformID)
+                    }
+                    dismiss()
+                }
+                .buttonStyle(.wavePrimary)
+                .disabled(selectedApp == nil)
+            }
+        }
+        .padding(WaveSpacing.sheet)
+        .onAppear { apps = appState.appsForProfiles() }
     }
 }
 
