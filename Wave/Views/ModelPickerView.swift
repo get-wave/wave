@@ -88,9 +88,11 @@ struct ModelPickerView: View {
                 }
             } else {
                 Button("Download") {
-                    appState.modelManager.download(model)
+                    appState.downloadWhisperModel(model)
                 }
                 .buttonStyle(.wave)
+                .disabled(appState.offlineMode)
+                .help(appState.offlineMode ? "Turn off offline mode to download" : "")
             }
         }
         .waveCard()

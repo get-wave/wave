@@ -43,6 +43,21 @@ struct GeneralSettingsView: View {
                     .onAppear { appState.microphoneManager.refresh() }
                 }
 
+                WaveSection("Privacy") {
+                    Toggle("Offline mode", isOn: $state.offlineMode)
+                        .font(WaveFont.body)
+                    Text("Wave makes no network requests except checking for updates. Speech must run on this Mac; AI features work with Ollama or LM Studio.")
+                        .font(WaveFont.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    ForEach(appState.offlineModeImpacts, id: \.self) { impact in
+                        Label(impact, systemImage: "exclamationmark.triangle.fill")
+                            .font(WaveFont.caption)
+                            .foregroundStyle(Color.waveWarning)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
                 // Permissions
                 if !micGranted || !accessibilityGranted {
                     WaveSection("Permissions") {

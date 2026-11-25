@@ -163,6 +163,8 @@ struct ProviderPickerView: View {
                 HStack(spacing: 6) {
                     Button(isDownloaded ? "Use" : "Download") { appState.selectParakeet(model) }
                         .buttonStyle(.wave)
+                        .disabled(!isDownloaded && appState.offlineMode)
+                        .help(!isDownloaded && appState.offlineMode ? "Turn off offline mode to download" : "")
                     if isDownloaded {
                         Button(action: { appState.deleteParakeet(model) }) {
                             Image(systemName: "trash")
@@ -240,9 +242,11 @@ struct ProviderPickerView: View {
                 }
             } else {
                 Button("Download") {
-                    appState.modelManager.download(model)
+                    appState.downloadWhisperModel(model)
                 }
                 .buttonStyle(.wave)
+                .disabled(appState.offlineMode)
+                .help(appState.offlineMode ? "Turn off offline mode to download" : "")
             }
         }
         .waveCard()
