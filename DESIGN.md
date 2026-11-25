@@ -52,6 +52,12 @@ Use `.monospacedDigit()` on a token for numbers that change in place (percentage
 | `card` | 12 | Inner padding of cards, tiles and charts |
 | `sheet` | 20 | Padding inside sheets |
 
+### Size (`WaveSize`)
+
+| Token | Value | Use |
+| --- | --- | --- |
+| `appIcon` | 20 | App icons in rows (per-app profiles) |
+
 ### Radius (`WaveRadius`)
 
 | Token | Value | Use |

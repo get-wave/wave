@@ -2,6 +2,7 @@ import Foundation
 import AppKit
 import SwiftUI
 import OSLog
+import UniformTypeIdentifiers
 
 enum DictationMode: String, CaseIterable {
     case pushToTalk = "Push to Talk"
@@ -199,6 +200,8 @@ final class AppState {
     let snippetManager = SnippetManager()
     let microphoneManager = MicrophoneManager()
     let transformManager = TransformManager()
+    let appProfileManager = AppProfileManager()
+    private var dictationTargetBundleID: String?
     let parakeetService = ParakeetService()
     var isModelLoaded = false   // tracked by @Observable — TranscriptionService is not
     var isAIMode = false
@@ -618,6 +621,7 @@ final class AppState {
             overlayPanel?.setAIMode(isAIMode)
             if !selectedMicUID.isEmpty { microphoneManager.applySelection(uid: selectedMicUID) }
             if muteSystemAudio { SystemAudioDucker.duck() }
+            dictationTargetBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
             try await transcriptionService.startRecording()
             warmConnections()
             // Poll mic level and drive overlay visualization
@@ -642,10 +646,58 @@ final class AppState {
 
     /// Opens the HTTPS connection to each cloud provider this dictation will use while
     /// the user is still speaking, so the request after release skips DNS, TCP and TLS.
+    /// The instruction applied to a dictation before pasting: the app's profile if it has one,
+    /// otherwise Polish when Automatic Polish is on. A profile whose transform was deleted falls back too.
+    func dictationTransformPrompt(for bundleID: String?) -> String? {
+        if let profile = appProfileManager.profile(for: bundleID) {
+            guard let transformID = profile.transformID else { return nil }
+            if let transform = transformManager.allTransforms.first(where: { $0.id == transformID }) {
+                return transform.prompt
+            }
+        }
+        return autoPolishDictations ? transformManager.polish.prompt : nil
+    }
+
+    func removeTransform(_ transform: TransformProfile) {
+        transformManager.remove(transform)
+        for profile in appProfileManager.profiles where profile.transformID == transform.id {
+            appProfileManager.setTransform(TransformProfile.polishID, for: profile.bundleID)
+        }
+        setupHotkey()
+    }
+
+    /// Regular apps that are running or installed, for adding a per-app profile.
+    func appsForProfiles() -> [InstalledApp] {
+        var apps: [String: InstalledApp] = [:]
+        let ownID = Bundle.main.bundleIdentifier
+        for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
+            guard let id = app.bundleIdentifier, id != ownID, let name = app.localizedName else { continue }
+            apps[id] = InstalledApp(bundleID: id, name: name)
+        }
+        let folders = ["/Applications", "/System/Applications", NSHomeDirectory() + "/Applications"]
+        for folder in folders {
+            guard let items = try? FileManager.default.contentsOfDirectory(atPath: folder) else { continue }
+            for item in items where item.hasSuffix(".app") {
+                guard let bundle = Bundle(path: folder + "/" + item), let id = bundle.bundleIdentifier, id != ownID, apps[id] == nil else { continue }
+                apps[id] = InstalledApp(bundleID: id, name: FileManager.default.displayName(atPath: folder + "/" + item).replacingOccurrences(of: ".app", with: ""))
+            }
+        }
+        let added = Set(appProfileManager.profiles.map(\.bundleID))
+        return apps.values.filter { !added.contains($0.bundleID) }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    func appIcon(for bundleID: String) -> NSImage {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
+            return NSWorkspace.shared.icon(for: .applicationBundle)
+        }
+        return NSWorkspace.shared.icon(forFile: url.path)
+    }
+
     private func warmConnections() {
         var providers: [AIProvider] = []
         if let cloud = transcriptionProvider.cloudProvider { providers.append(cloud) }
-        if (isAIMode || autoPolishDictations) && isLLMReady && !providers.contains(llmProvider) { providers.append(llmProvider) }
+        if (isAIMode || dictationTransformPrompt(for: dictationTargetBundleID) != nil) && isLLMReady && !providers.contains(llmProvider) { providers.append(llmProvider) }
         for provider in providers where !provider.runsOnThisMac && hasCredentials(provider) {
             guard let url = URL(string: "\(baseURL(for: provider))/models") else { continue }
             var request = URLRequest(url: url)
@@ -729,13 +781,10 @@ final class AppState {
             text = transcribed
         }
 
-        if autoPolishDictations, isLLMReady, !isAIMode, let originalText = text, !originalText.isEmpty {
+        if let prompt = dictationTransformPrompt(for: dictationTargetBundleID), isLLMReady, !isAIMode, let originalText = text, !originalText.isEmpty {
             status = .transforming
             updateOverlay()
-            text = await runTransform(
-                text: originalText,
-                prompt: transformManager.polish.prompt
-            ) ?? originalText
+            text = await runTransform(text: originalText, prompt: prompt) ?? originalText
         }
 
         status = .idle

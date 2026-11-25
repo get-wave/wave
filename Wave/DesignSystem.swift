@@ -51,6 +51,10 @@ enum WaveSpacing {
     static let card: CGFloat = 12
 }
 
+enum WaveSize {
+    static let appIcon: CGFloat = 20
+}
+
 enum WaveRadius {
     static let card: CGFloat = 8
     static let button: CGFloat = 6
