@@ -6,6 +6,8 @@ struct TransformsView: View {
     @State private var isAddingTransform = false
     @State private var isAddingApp = false
 
+    private var codingAppsToAdd: [InstalledApp] { appState.codingAppsWithoutProfiles() }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: WaveSpacing.section) {
@@ -53,12 +55,25 @@ struct TransformsView: View {
                         appProfileRow(profile)
                     }
 
-                    Button {
-                        isAddingApp = true
-                    } label: {
-                        Label("Add App", systemImage: "plus")
+                    HStack(spacing: 6) {
+                        Button {
+                            isAddingApp = true
+                        } label: {
+                            Label("Add App", systemImage: "plus")
+                        }
+                        .buttonStyle(.wave)
+
+                        Button {
+                            appState.addCodingAppProfiles()
+                        } label: {
+                            Label("Add Coding Apps", systemImage: "chevron.left.forwardslash.chevron.right")
+                        }
+                        .buttonStyle(.wave)
+                        .disabled(codingAppsToAdd.isEmpty)
+                        .help(codingAppsToAdd.isEmpty
+                              ? "No terminals or code editors left to add"
+                              : "Use Coding Agent in " + codingAppsToAdd.map(\.name).joined(separator: ", "))
                     }
-                    .buttonStyle(.wave)
                 }
             }
             .padding(WaveSpacing.page)

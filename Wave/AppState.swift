@@ -699,7 +699,7 @@ final class AppState {
             guard let id = app.bundleIdentifier, id != ownID, let name = app.localizedName else { continue }
             apps[id] = InstalledApp(bundleID: id, name: name)
         }
-        let folders = ["/Applications", "/System/Applications", NSHomeDirectory() + "/Applications"]
+        let folders = ["/Applications", "/Applications/Utilities", "/System/Applications", "/System/Applications/Utilities", NSHomeDirectory() + "/Applications"]
         for folder in folders {
             guard let items = try? FileManager.default.contentsOfDirectory(atPath: folder) else { continue }
             for item in items where item.hasSuffix(".app") {
@@ -710,6 +710,25 @@ final class AppState {
         let added = Set(appProfileManager.profiles.map(\.bundleID))
         return apps.values.filter { !added.contains($0.bundleID) }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    /// Terminals and code editors, where dictation is usually an instruction to a coding agent.
+    static let codingAppBundleIDs: Set<String> = [
+        "com.apple.Terminal", "com.googlecode.iterm2", "com.mitchellh.ghostty", "dev.warp.Warp-Stable",
+        "com.todesktop.230313mzl4w4u92", "com.microsoft.VSCode", "com.microsoft.VSCodeInsiders",
+        "dev.zed.Zed", "com.exafunction.windsurf",
+    ]
+
+    func codingAppsWithoutProfiles() -> [InstalledApp] {
+        appsForProfiles().filter { Self.codingAppBundleIDs.contains($0.bundleID) }
+    }
+
+    func addCodingAppProfiles() {
+        let transformIDs = Set(transformManager.allTransforms.map(\.id))
+        let transformID = transformIDs.contains(TransformProfile.codingAgentID) ? TransformProfile.codingAgentID : TransformProfile.promptEngineerID
+        for app in codingAppsWithoutProfiles() {
+            appProfileManager.add(app, transformID: transformID)
+        }
     }
 
     func appIcon(for bundleID: String) -> NSImage {
